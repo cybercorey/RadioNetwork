@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: radionetwork_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-radionetwork}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-radionetwork}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - radionetwork
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-radionetwork}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache & Queue
+  redis:
+    image: redis:7-alpine
+    container_name: radionetwork_redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - radionetwork
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Backend API
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: radionetwork_api
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${DB_USER:-radionetwork}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-radionetwork}
+      REDIS_URL: redis://redis:6379
+      PORT: 4000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # CORS - Multiple origins supported (comma-separated)
+      CORS_ORIGIN: ${CORS_ORIGIN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - radionetwork
+      - traefik  # Connect to your existing Traefik network
+    restart: unless-stopped
+    labels:
+      # Enable Traefik
+      - "traefik.enable=true"
+
+      # HTTP Router
+      - "traefik.http.routers.radionetwork-api.rule=Host(`${API_DOMAIN}`)"
+      - "traefik.http.routers.radionetwork-api.entrypoints=websecure"
+      - "traefik.http.routers.radionetwork-api.tls=true"
+      - "traefik.http.routers.radionetwork-api.tls.certresolver=letsencrypt"
+
+      # Service
+      - "traefik.http.services.radionetwork-api.loadbalancer.server.port=4000"
+
+      # Middleware - Security Headers
+      - "traefik.http.middlewares.radionetwork-security.headers.customResponseHeaders.X-Robots-Tag=noindex,nofollow"
+      - "traefik.http.middlewares.radionetwork-security.headers.browserXssFilter=true"
+      - "traefik.http.middlewares.radionetwork-security.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.radionetwork-security.headers.forceSTSHeader=true"
+      - "traefik.http.middlewares.radionetwork-security.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.radionetwork-security.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.radionetwork-security.headers.stsPreload=true"
+
+      # Apply middleware
+      - "traefik.http.routers.radionetwork-api.middlewares=radionetwork-security"
+
+      # Specify network for Traefik
+      - "traefik.docker.network=traefik"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:
+    name: radionetwork_postgres_data
+  redis_data:
+    name: radionetwork_redis_data
+
+networks:
+  radionetwork:
+    name: radionetwork_internal
+    driver: bridge
+  traefik:
+    external: true
+    name: traefik  # Your existing Traefik network

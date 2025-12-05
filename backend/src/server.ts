@@ -11,7 +11,9 @@ import stationsRouter from './api/routes/stations';
 import songsRouter from './api/routes/songs';
 import playsRouter from './api/routes/plays';
 import analyticsRouter from './api/routes/analytics';
+import searchRouter from './api/routes/search';
 import { setupSocketHandlers } from './socket/socketHandler';
+import { corsOptions, getCorsOrigins } from './config/cors';
 
 // Fix BigInt serialization in JSON
 (BigInt.prototype as any).toJSON = function() {
@@ -21,21 +23,19 @@ import { setupSocketHandlers } from './socket/socketHandler';
 const app = express();
 const server = createServer(app);
 
-// Socket.io setup
+// Socket.io setup with dynamic CORS
 const io = new Server(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-    methods: ['GET', 'POST']
+    origin: getCorsOrigins(),
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 });
 
 // Middleware
 app.use(helmet());
 app.use(compression());
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true
-}));
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -58,6 +58,7 @@ app.use('/api/stations', stationsRouter);
 app.use('/api/songs', songsRouter);
 app.use('/api/plays', playsRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/search', searchRouter);
 
 // Socket.io handlers
 setupSocketHandlers(io);

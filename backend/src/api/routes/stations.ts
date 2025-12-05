@@ -2,11 +2,12 @@ import { Router } from 'express';
 import { stationService } from '../../services/stationService';
 import { playService } from '../../services/playService';
 import { logger } from '../../utils/logger';
+import { cacheControl, CacheDuration } from '../middleware/cacheControl';
 
 const router = Router();
 
-// GET /api/stations - List all stations
-router.get('/', async (req, res, next) => {
+// GET /api/stations - List all stations (cache 5 minutes)
+router.get('/', cacheControl(CacheDuration.MEDIUM), async (req, res, next) => {
   try {
     const stations = await stationService.findAll();
     res.json(stations);
@@ -15,11 +16,11 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// GET /api/stations/:slug - Get station by slug
-router.get('/:slug', async (req, res, next) => {
+// GET /api/stations/:slug - Get station by slug (cache 5 minutes)
+router.get('/:slug', cacheControl(CacheDuration.MEDIUM), async (req, res, next) => {
   try {
     const station = await stationService.findBySlug(req.params.slug);
-    
+
     if (!station) {
       return res.status(404).json({ error: 'Station not found' });
     }
@@ -30,17 +31,17 @@ router.get('/:slug', async (req, res, next) => {
   }
 });
 
-// GET /api/stations/:slug/current - Get current playing song
-router.get('/:slug/current', async (req, res, next) => {
+// GET /api/stations/:slug/current - Get current playing song (cache 30 seconds)
+router.get('/:slug/current', cacheControl(CacheDuration.SHORT), async (req, res, next) => {
   try {
     const station = await stationService.findBySlug(req.params.slug);
-    
+
     if (!station) {
       return res.status(404).json({ error: 'Station not found' });
     }
 
     const currentPlay = await playService.getCurrentPlay(station.id);
-    
+
     if (!currentPlay) {
       return res.json({
         station,
@@ -59,8 +60,8 @@ router.get('/:slug/current', async (req, res, next) => {
   }
 });
 
-// GET /api/stations/:slug/history - Get play history for station
-router.get('/:slug/history', async (req, res, next) => {
+// GET /api/stations/:slug/history - Get play history for station (cache 1 minute)
+router.get('/:slug/history', cacheControl(60), async (req, res, next) => {
   try {
     const { slug } = req.params;
     const limit = parseInt(req.query.limit as string) || 50;

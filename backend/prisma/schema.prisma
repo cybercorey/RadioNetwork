@@ -36,8 +36,10 @@ model Song {
   titleNormalized     String   @map("title_normalized") @db.VarChar(500)
   artistNormalized    String   @map("artist_normalized") @db.VarChar(500)
   duration            Int?
+  isNonSong           Boolean  @default(false) @map("is_non_song")
+  nonSongType         String?  @map("non_song_type") @db.VarChar(50)
   createdAt           DateTime @default(now()) @map("created_at")
-  
+
   plays               Play[]
 
   @@unique([titleNormalized, artistNormalized])

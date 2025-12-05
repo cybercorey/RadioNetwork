@@ -26,6 +26,8 @@ CREATE TABLE "songs" (
     "title_normalized" VARCHAR(500) NOT NULL,
     "artist_normalized" VARCHAR(500) NOT NULL,
     "duration" INTEGER,
+    "is_non_song" BOOLEAN NOT NULL DEFAULT false,
+    "non_song_type" VARCHAR(50),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "songs_pkey" PRIMARY KEY ("id")
@@ -85,8 +87,8 @@ ALTER TABLE "plays" ADD CONSTRAINT "plays_song_id_fkey" FOREIGN KEY ("song_id") 
 ALTER TABLE "scrape_jobs" ADD CONSTRAINT "scrape_jobs_station_id_fkey" FOREIGN KEY ("station_id") REFERENCES "stations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- Insert seed data for NZ radio stations
-INSERT INTO "stations" ("name", "slug", "stream_url", "homepage_url", "country_code", "tags", "scrape_interval") VALUES
-('The Rock', 'the-rock', 'https://digitalstreams.mediaworks.nz/rock_net_icy', 'https://www.therock.net.nz/', 'NZ', ARRAY['rock', 'alternative', 'classic rock'], 60),
-('The Edge', 'the-edge', 'https://digitalstreams.mediaworks.nz/edge_net_icy', 'https://www.theedge.co.nz/', 'NZ', ARRAY['pop', 'hits', 'top 40'], 60),
-('The Sound', 'the-sound', 'https://digitalstreams.mediaworks.nz/sound_net_icy', 'https://www.thesound.co.nz/', 'NZ', ARRAY['classic hits', 'variety'], 60),
-('The Breeze', 'the-breeze', 'https://digitalstreams.mediaworks.nz/breeze_net_icy', 'https://www.thebreeze.co.nz/', 'NZ', ARRAY['easy listening', 'soft rock'], 60);
+INSERT INTO "stations" ("name", "slug", "stream_url", "homepage_url", "country_code", "tags", "scrape_interval", "updated_at") VALUES
+('The Rock', 'the-rock', 'https://digitalstreams.mediaworks.nz/rock_net_icy', 'https://www.therock.net.nz/', 'NZ', ARRAY['rock', 'alternative', 'classic rock'], 60, CURRENT_TIMESTAMP),
+('The Edge', 'the-edge', 'https://digitalstreams.mediaworks.nz/edge_net_icy', 'https://www.theedge.co.nz/', 'NZ', ARRAY['pop', 'hits', 'top 40'], 60, CURRENT_TIMESTAMP),
+('The Sound', 'the-sound', 'https://digitalstreams.mediaworks.nz/sound_net_icy', 'https://www.thesound.co.nz/', 'NZ', ARRAY['classic hits', 'variety'], 60, CURRENT_TIMESTAMP),
+('The Breeze', 'the-breeze', 'https://digitalstreams.mediaworks.nz/breeze_net_icy', 'https://www.thebreeze.co.nz/', 'NZ', ARRAY['easy listening', 'soft rock'], 60, CURRENT_TIMESTAMP);

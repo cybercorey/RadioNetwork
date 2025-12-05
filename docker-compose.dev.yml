@@ -90,7 +90,11 @@ services:
 
 volumes:
   postgres_dev_data:
+    external: true
+    name: v2_postgres_dev_data
   redis_dev_data:
+    external: true
+    name: v2_redis_dev_data
 
 networks:
   radionetwork_dev:
