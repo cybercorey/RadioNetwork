@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Station {
+  id              Int      @id @default(autoincrement())
+  name            String   @db.VarChar(255)
+  slug            String   @unique @db.VarChar(255)
+  streamUrl       String   @map("stream_url") @db.Text
+  homepageUrl     String?  @map("homepage_url") @db.Text
+  logoUrl         String?  @map("logo_url") @db.Text
+  countryCode     String   @default("NZ") @map("country_code") @db.VarChar(2)
+  tags            String[]
+  isActive        Boolean  @default(true) @map("is_active")
+  scrapeInterval  Int      @default(60) @map("scrape_interval")
+  lastScrapedAt   DateTime? @map("last_scraped_at")
+  metadataType    String   @default("icy") @map("metadata_type") @db.VarChar(50)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  plays           Play[]
+  scrapeJobs      ScrapeJob[]
+
+  @@map("stations")
+}
+
+model Song {
+  id                  Int      @id @default(autoincrement())
+  title               String   @db.VarChar(500)
+  artist              String   @db.VarChar(500)
+  titleNormalized     String   @map("title_normalized") @db.VarChar(500)
+  artistNormalized    String   @map("artist_normalized") @db.VarChar(500)
+  duration            Int?
+  createdAt           DateTime @default(now()) @map("created_at")
+  
+  plays               Play[]
+
+  @@unique([titleNormalized, artistNormalized])
+  @@index([artistNormalized, titleNormalized])
+  @@map("songs")
+}
+
+model Play {
+  id                BigInt   @id @default(autoincrement())
+  stationId         Int      @map("station_id")
+  songId            Int      @map("song_id")
+  playedAt          DateTime @map("played_at")
+  rawMetadata       Json?    @map("raw_metadata")
+  confidenceScore   Float?   @map("confidence_score") @db.Real
+  createdAt         DateTime @default(now()) @map("created_at")
+  
+  station           Station  @relation(fields: [stationId], references: [id])
+  song              Song     @relation(fields: [songId], references: [id])
+
+  @@index([stationId, playedAt(sort: Desc)])
+  @@index([songId, playedAt(sort: Desc)])
+  @@index([playedAt(sort: Desc)])
+  @@map("plays")
+}
+
+model ScrapeJob {
+  id            Int       @id @default(autoincrement())
+  stationId     Int       @map("station_id")
+  status        String    @db.VarChar(50)
+  startedAt     DateTime? @map("started_at")
+  completedAt   DateTime? @map("completed_at")
+  errorMessage  String?   @map("error_message") @db.Text
+  songsFound    Int       @default(0) @map("songs_found")
+  
+  station       Station   @relation(fields: [stationId], references: [id])
+
+  @@map("scrape_jobs")
+}
