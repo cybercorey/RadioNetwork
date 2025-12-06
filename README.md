@@ -22,7 +22,7 @@ Modern radio station tracking system for New Zealand radio stations.
 - Socket.io (real-time)
 
 ### Frontend
-- Next.js 14 (App Router)
+- Next.js 15 (App Router)
 - Chakra UI
 - TypeScript
 - Socket.io Client
