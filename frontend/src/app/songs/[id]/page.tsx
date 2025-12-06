@@ -58,19 +58,26 @@ interface SongStats {
   playsByDay: { [key: string]: number };
 }
 
-export default function SongDetailPage({ params }: { params: { id: string } }) {
+export default function SongDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [song, setSong] = useState<Song | null>(null);
   const [stats, setStats] = useState<SongStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [spotifyUrl, setSpotifyUrl] = useState<string | null>(null);
+  const [songId, setSongId] = useState<string | null>(null);
 
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
 
   useEffect(() => {
-    fetchSongData();
-  }, [params.id]);
+    params.then((p) => setSongId(p.id));
+  }, [params]);
+
+  useEffect(() => {
+    if (songId) {
+      fetchSongData();
+    }
+  }, [songId]);
 
   useEffect(() => {
     if (song) {
@@ -81,9 +88,10 @@ export default function SongDetailPage({ params }: { params: { id: string } }) {
   }, [song]);
 
   const fetchSongData = async () => {
+    if (!songId) return;
     setIsLoading(true);
     try {
-      const response = await api.get(`/songs/${params.id}/stats`);
+      const response = await api.get(`/songs/${songId}/stats`);
       setSong(response.data.song);
       setStats(response.data.stats);
     } catch (error) {

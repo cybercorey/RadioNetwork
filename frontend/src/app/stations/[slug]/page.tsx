@@ -32,9 +32,10 @@ import { FaArrowLeft, FaMusic } from 'react-icons/fa';
 import { format } from 'date-fns';
 import api from '@/services/api';
 
-export default function StationPage({ params }: { params: { slug: string } }) {
-  const { station, isLoading } = useStation(params.slug);
-  const { data: currentData, mutate } = useCurrentSong(params.slug);
+export default function StationPage({ params }: { params: Promise<{ slug: string }> }) {
+  const [slug, setSlug] = useState<string | null>(null);
+  const { station, isLoading } = useStation(slug || '');
+  const { data: currentData, mutate } = useCurrentSong(slug || '');
   const socket = useSocket();
   const [history, setHistory] = useState<Play[]>([]);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
@@ -44,19 +45,23 @@ export default function StationPage({ params }: { params: { slug: string } }) {
   const borderColor = useColorModeValue('gray.200', 'gray.700');
 
   useEffect(() => {
+    params.then((p) => setSlug(p.slug));
+  }, [params]);
+
+  useEffect(() => {
     if (currentData?.currentSong) {
       setCurrentSong(currentData.currentSong);
     }
   }, [currentData]);
 
   useEffect(() => {
-    if (station) {
+    if (station && slug) {
       // Fetch history
-      api.get(`/stations/${params.slug}/history?limit=50`).then((res) => {
+      api.get(`/stations/${slug}/history?limit=50`).then((res) => {
         setHistory(res.data.plays);
       });
     }
-  }, [station, params.slug]);
+  }, [station, slug]);
 
   useEffect(() => {
     if (!socket || !station) return;
