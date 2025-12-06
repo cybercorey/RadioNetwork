@@ -39,10 +39,14 @@ services:
 
   # Backend API
   api:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.prod
+    # Use pre-built image from GitHub Container Registry
+    # Alternatively, build locally by uncommenting the build section below
+    image: ghcr.io/cybercorey/radionetwork/backend:latest
+    # build:
+    #   context: ./backend
+    #   dockerfile: Dockerfile.prod
     container_name: radionetwork_api
+    pull_policy: always  # Always pull latest image
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${DB_USER:-radionetwork}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-radionetwork}

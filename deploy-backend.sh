@@ -22,9 +22,13 @@ if [ -d .git ]; then
     git pull origin v2
 fi
 
-# Build and start containers
-echo "🐳 Building and starting containers..."
-docker compose -f docker-compose.backend.yml --env-file .env.backend up -d --build
+# Pull latest Docker image from GitHub Container Registry
+echo "🐳 Pulling latest Docker image from GitHub Container Registry..."
+docker pull ghcr.io/cybercorey/radionetwork/backend:latest || echo "⚠️  Could not pull image, will build locally"
+
+# Start containers (will use pulled image or build if pull failed)
+echo "🚀 Starting containers..."
+docker compose -f docker-compose.backend.yml --env-file .env.backend up -d
 
 # Wait for services to be healthy
 echo "⏳ Waiting for services to be healthy..."
