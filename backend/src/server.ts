@@ -23,6 +23,9 @@ import { corsOptions, getCorsOrigins } from './config/cors';
 const app = express();
 const server = createServer(app);
 
+// Trust proxy - required when behind Traefik/nginx
+app.set('trust proxy', true);
+
 // Socket.io setup with dynamic CORS
 const io = new Server(server, {
   cors: {
