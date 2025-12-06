@@ -5,8 +5,8 @@ import { logger } from '../utils/logger';
 import { parseSongMetadata } from '../utils/normalizer';
 
 export interface IcyMetadata {
-  title?: string;
-  artist?: string;
+  title: string;
+  artist: string;
   raw: string;
 }
 

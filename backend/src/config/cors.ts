@@ -4,7 +4,7 @@
  * Supports wildcard patterns for Vercel preview deployments
  */
 
-export function getCorsOrigins(): string | string[] | RegExp {
+export function getCorsOrigins(): string | string[] | RegExp | (string | RegExp)[] {
   const corsOrigin = process.env.CORS_ORIGIN;
 
   if (!corsOrigin) {
@@ -15,7 +15,7 @@ export function getCorsOrigins(): string | string[] | RegExp {
   const origins = corsOrigin.split(',').map(origin => origin.trim());
 
   // Convert wildcard patterns to RegExp
-  const processedOrigins = origins.map(origin => {
+  const processedOrigins: (string | RegExp)[] = origins.map(origin => {
     if (origin.includes('*')) {
       // Convert wildcard to regex pattern
       // Example: https://radionetwork-*.vercel.app -> /^https:\/\/radionetwork-.*\.vercel\.app$/
@@ -41,8 +41,8 @@ export const corsOptions = {
 
     // Check if origin is allowed
     if (Array.isArray(allowedOrigins)) {
-      const isAllowed = allowedOrigins.some(allowed => {
-        if (allowed instanceof RegExp) {
+      const isAllowed = allowedOrigins.some((allowed: string | RegExp) => {
+        if (typeof allowed === 'object' && 'test' in allowed) {
           return allowed.test(origin);
         }
         return allowed === origin;
