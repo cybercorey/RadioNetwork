@@ -83,6 +83,9 @@ export default function InsightsPage() {
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const tooltipBg = useColorModeValue('#ffffff', '#1a202c');
+  const tooltipText = useColorModeValue('#1a202c', '#ffffff');
+  const tooltipBorder = useColorModeValue('#e2e8f0', '#4a5568');
 
   useEffect(() => {
     fetchInsights();
@@ -138,6 +141,37 @@ export default function InsightsPage() {
             </Box>
             <Button as={Link} href="/" leftIcon={<FaArrowLeft />} variant="ghost">
               Back
+            </Button>
+          </HStack>
+
+          {/* Sub-navigation */}
+          <HStack spacing={4}>
+            <Button
+              as={Link}
+              href="/analytics"
+              leftIcon={<FaChartLine />}
+              variant="outline"
+              size="sm"
+            >
+              Dashboard
+            </Button>
+            <Button
+              as={Link}
+              href="/insights"
+              leftIcon={<FaFire />}
+              colorScheme="brand"
+              size="sm"
+            >
+              Advanced Insights
+            </Button>
+            <Button
+              as={Link}
+              href="/compare"
+              leftIcon={<FaExchangeAlt />}
+              variant="outline"
+              size="sm"
+            >
+              Station Comparison
             </Button>
           </HStack>
 
@@ -359,6 +393,7 @@ export default function InsightsPage() {
                             <YAxis />
                             <Tooltip
                               labelFormatter={(value) => format(new Date(value), 'MMMM yyyy')}
+                              contentStyle={{ backgroundColor: tooltipBg, color: tooltipText, border: `1px solid ${tooltipBorder}` }}
                             />
                             <Legend />
                             <Line type="monotone" dataKey="plays" stroke="#8884d8" name="Plays" />

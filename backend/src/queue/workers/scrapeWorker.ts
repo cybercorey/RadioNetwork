@@ -40,10 +40,15 @@ scrapeQueue.process(async (job) => {
       return { success: false, reason: 'Invalid metadata' };
     }
 
-    // Find or create song
+    // Get station name for show detection
+    const stationForDetection = await stationService.findById(stationId);
+    const stationName = stationForDetection?.name;
+
+    // Find or create song (with auto show detection if station name available)
     const song = await songService.findOrCreate({
       artist: metadata.artist,
-      title: metadata.title
+      title: metadata.title,
+      stationName,
     });
 
     // Check if this is a new play (not duplicate of last song)

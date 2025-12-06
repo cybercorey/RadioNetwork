@@ -140,18 +140,18 @@ router.get('/compare/stats', cacheControl(CacheDuration.LONG), async (req, res, 
         const uniqueArtistsData = await prisma.$queryRaw<{ count: bigint }[]>`
           SELECT COUNT(DISTINCT s.artist) as count
           FROM plays p
-          JOIN songs s ON p."songId" = s.id
-          WHERE p."stationId" = ${stationId}
-            AND p."playedAt" >= ${dateThreshold}
+          JOIN songs s ON p.song_id = s.id
+          WHERE p.station_id = ${stationId}
+            AND p.played_at >= ${dateThreshold}
         `;
 
         // Get top genres
         const topGenres = await prisma.$queryRaw<{ genre: string; plays: bigint }[]>`
           SELECT UNNEST(st.tags) as genre, COUNT(*) as plays
           FROM plays p
-          JOIN stations st ON p."stationId" = st.id
-          WHERE p."stationId" = ${stationId}
-            AND p."playedAt" >= ${dateThreshold}
+          JOIN stations st ON p.station_id = st.id
+          WHERE p.station_id = ${stationId}
+            AND p.played_at >= ${dateThreshold}
           GROUP BY genre
           ORDER BY plays DESC
           LIMIT 5
@@ -216,17 +216,17 @@ router.get('/compare/overlap', cacheControl(CacheDuration.LONG), async (req, res
         s.id,
         s.title,
         s.artist,
-        COUNT(DISTINCT p."stationId") as station_count,
+        COUNT(DISTINCT p.station_id) as station_count,
         COUNT(*) as total_plays,
         array_agg(DISTINCT st.name) as stations
       FROM songs s
-      JOIN plays p ON s.id = p."songId"
-      JOIN stations st ON p."stationId" = st.id
-      WHERE p."stationId" = ANY(${ids})
-        AND p."playedAt" >= ${dateThreshold}
+      JOIN plays p ON s.id = p.song_id
+      JOIN stations st ON p.station_id = st.id
+      WHERE p.station_id = ANY(${ids})
+        AND p.played_at >= ${dateThreshold}
       GROUP BY s.id, s.title, s.artist
-      HAVING COUNT(DISTINCT p."stationId") > 1
-      ORDER BY COUNT(DISTINCT p."stationId") DESC, COUNT(*) DESC
+      HAVING COUNT(DISTINCT p.station_id) > 1
+      ORDER BY COUNT(DISTINCT p.station_id) DESC, COUNT(*) DESC
       LIMIT ${limit}
     `;
 
@@ -277,14 +277,14 @@ router.get('/compare/unique', cacheControl(CacheDuration.LONG), async (req, res,
         s.artist,
         COUNT(*) as play_count
       FROM songs s
-      JOIN plays p ON s.id = p."songId"
-      WHERE p."stationId" = ${stationId}
-        AND p."playedAt" >= ${dateThreshold}
+      JOIN plays p ON s.id = p.song_id
+      WHERE p.station_id = ${stationId}
+        AND p.played_at >= ${dateThreshold}
         AND s.id NOT IN (
-          SELECT DISTINCT "songId"
+          SELECT DISTINCT song_id
           FROM plays
-          WHERE "stationId" = ANY(${otherIds})
-            AND "playedAt" >= ${dateThreshold}
+          WHERE station_id = ANY(${otherIds})
+            AND played_at >= ${dateThreshold}
         )
       GROUP BY s.id, s.title, s.artist
       ORDER BY COUNT(*) DESC
@@ -341,12 +341,12 @@ router.get('/compare/timeline', cacheControl(CacheDuration.LONG), async (req, re
           plays: bigint;
         }[]>`
           SELECT
-            DATE("playedAt") as date,
+            DATE(played_at) as date,
             COUNT(*) as plays
           FROM plays
-          WHERE "stationId" = ${stationId}
-            AND "playedAt" >= ${dateThreshold}
-          GROUP BY DATE("playedAt")
+          WHERE station_id = ${stationId}
+            AND played_at >= ${dateThreshold}
+          GROUP BY DATE(played_at)
           ORDER BY date ASC
         `;
 

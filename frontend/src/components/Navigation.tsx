@@ -9,7 +9,7 @@ import {
   Heading,
 } from '@chakra-ui/react';
 import Link from 'next/link';
-import { FaHome, FaHistory, FaChartLine, FaSearch } from 'react-icons/fa';
+import { FaHome, FaHistory, FaChartLine, FaSearch, FaFire, FaExchangeAlt } from 'react-icons/fa';
 
 export default function Navigation() {
   const bgColor = useColorModeValue('white', 'gray.800');
@@ -65,6 +65,24 @@ export default function Navigation() {
               size="sm"
             >
               Analytics
+            </Button>
+            <Button
+              as={Link}
+              href="/insights"
+              leftIcon={<FaFire />}
+              variant="ghost"
+              size="sm"
+            >
+              Insights
+            </Button>
+            <Button
+              as={Link}
+              href="/compare"
+              leftIcon={<FaExchangeAlt />}
+              variant="ghost"
+              size="sm"
+            >
+              Compare
             </Button>
           </HStack>
         </HStack>

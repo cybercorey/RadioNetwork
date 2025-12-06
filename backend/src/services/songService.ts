@@ -1,6 +1,8 @@
 import { prisma } from '../config/database';
 import { Song, Prisma } from '@prisma/client';
 import { normalizeText } from '../utils/normalizer';
+import { detectRadioShow } from '../utils/showDetection';
+import { logger } from '../utils/logger';
 
 export class SongService {
   async findAll(limit = 100, offset = 0): Promise<Song[]> {
@@ -31,7 +33,12 @@ export class SongService {
     });
   }
 
-  async findOrCreate(data: { artist: string; title: string; duration?: number }): Promise<Song> {
+  async findOrCreate(data: {
+    artist: string;
+    title: string;
+    duration?: number;
+    stationName?: string;
+  }): Promise<Song> {
     const artistNormalized = normalizeText(data.artist);
     const titleNormalized = normalizeText(data.title);
 
@@ -39,6 +46,19 @@ export class SongService {
     let song = await this.findByNormalized(data.artist, data.title);
 
     if (!song) {
+      // Check if this is a radio show (artist matches station name)
+      let isNonSong = false;
+      let nonSongType: string | null = null;
+
+      if (data.stationName) {
+        const detection = detectRadioShow(data.artist, data.title, data.stationName);
+        if (detection.isShow) {
+          isNonSong = true;
+          nonSongType = 'show';
+          logger.info(`Auto-detected radio show: "${data.artist} - ${data.title}" (${detection.reason})`);
+        }
+      }
+
       // Create new song
       song = await prisma.song.create({
         data: {
@@ -46,7 +66,9 @@ export class SongService {
           title: data.title,
           artistNormalized,
           titleNormalized,
-          duration: data.duration
+          duration: data.duration,
+          isNonSong,
+          nonSongType,
         }
       });
     }

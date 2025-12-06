@@ -35,7 +35,7 @@ import {
   CheckboxGroup,
   Stack,
 } from '@chakra-ui/react';
-import { FaArrowLeft, FaExchangeAlt, FaChartBar, FaMusic, FaClock } from 'react-icons/fa';
+import { FaArrowLeft, FaExchangeAlt, FaChartBar, FaMusic, FaClock, FaChartLine, FaFire } from 'react-icons/fa';
 import Link from 'next/link';
 import {
   LineChart,
@@ -108,6 +108,9 @@ export default function ComparePage() {
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const tooltipBg = useColorModeValue('#ffffff', '#1a202c');
+  const tooltipText = useColorModeValue('#1a202c', '#ffffff');
+  const tooltipBorder = useColorModeValue('#e2e8f0', '#4a5568');
 
   // Fetch all stations
   useEffect(() => {
@@ -202,6 +205,37 @@ export default function ComparePage() {
             </Box>
             <Button as={Link} href="/" leftIcon={<FaArrowLeft />} variant="ghost">
               Back
+            </Button>
+          </HStack>
+
+          {/* Sub-navigation */}
+          <HStack spacing={4}>
+            <Button
+              as={Link}
+              href="/analytics"
+              leftIcon={<FaChartLine />}
+              variant="outline"
+              size="sm"
+            >
+              Dashboard
+            </Button>
+            <Button
+              as={Link}
+              href="/insights"
+              leftIcon={<FaFire />}
+              variant="outline"
+              size="sm"
+            >
+              Advanced Insights
+            </Button>
+            <Button
+              as={Link}
+              href="/compare"
+              leftIcon={<FaExchangeAlt />}
+              colorScheme="brand"
+              size="sm"
+            >
+              Station Comparison
             </Button>
           </HStack>
 
@@ -480,7 +514,7 @@ export default function ComparePage() {
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="date" />
                           <YAxis />
-                          <Tooltip />
+                          <Tooltip contentStyle={{ backgroundColor: tooltipBg, color: tooltipText, border: `1px solid ${tooltipBorder}` }} />
                           <Legend />
                           {timeline.map((t, idx) => (
                             <Line

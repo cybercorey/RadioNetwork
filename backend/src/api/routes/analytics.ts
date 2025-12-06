@@ -31,9 +31,14 @@ router.get('/stats', cacheControl(CacheDuration.MEDIUM), async (req, res, next) 
 });
 
 // GET /api/analytics/dashboard - Get comprehensive dashboard analytics (cache 5 minutes)
+// Query params:
+//   - timeRange: '24h' | '7d' | '30d' | 'all' (default: '7d')
+//   - includeNonSongs: 'true' to include shows/commercials (default: false, excludes them)
 router.get('/dashboard', cacheControl(CacheDuration.MEDIUM), async (req, res, next) => {
   try {
     const timeRange = req.query.timeRange as string || '7d';
+    // By default, exclude non-songs (shows, commercials, etc.) from analytics
+    const includeNonSongs = req.query.includeNonSongs === 'true';
 
     // Calculate date filter
     let cutoffDate: Date;
@@ -53,29 +58,50 @@ router.get('/dashboard', cacheControl(CacheDuration.MEDIUM), async (req, res, ne
         cutoffDate = new Date(0); // All time
     }
 
-    // Get overall stats
+    // Song filter to exclude non-songs (shows, commercials) by default
+    const songFilter = includeNonSongs ? {} : { isNonSong: false };
+
+    // Get overall stats (always include non-songs in counts for accuracy)
     const totalPlays = await prisma.play.count();
-    const totalSongs = await prisma.song.count();
+    const totalSongs = await prisma.song.count({ where: songFilter });
     const activeStations = await prisma.station.count({ where: { isActive: true } });
 
-    const songs = await prisma.song.findMany({ select: { artist: true } });
+    const songs = await prisma.song.findMany({
+      where: songFilter,
+      select: { artist: true }
+    });
     const uniqueArtists = new Set(songs.map(s => s.artist)).size;
 
-    // Plays over time (grouped by date)
-    const playsOverTime = await prisma.$queryRaw<{ date: string; plays: number }[]>`
-      SELECT
-        DATE(played_at) as date,
-        COUNT(*)::int as plays
-      FROM plays
-      WHERE played_at >= ${cutoffDate}
-      GROUP BY DATE(played_at)
-      ORDER BY date ASC
-    `;
+    // Plays over time (grouped by date) - filter non-songs via join
+    const playsOverTime = includeNonSongs
+      ? await prisma.$queryRaw<{ date: string; plays: number }[]>`
+          SELECT
+            DATE(played_at) as date,
+            COUNT(*)::int as plays
+          FROM plays
+          WHERE played_at >= ${cutoffDate}
+          GROUP BY DATE(played_at)
+          ORDER BY date ASC
+        `
+      : await prisma.$queryRaw<{ date: string; plays: number }[]>`
+          SELECT
+            DATE(p.played_at) as date,
+            COUNT(*)::int as plays
+          FROM plays p
+          JOIN songs s ON p.song_id = s.id
+          WHERE p.played_at >= ${cutoffDate}
+            AND s.is_non_song = false
+          GROUP BY DATE(p.played_at)
+          ORDER BY date ASC
+        `;
 
-    // Top songs
+    // Top songs - filter to only include actual songs
     const topSongsData = await prisma.play.groupBy({
       by: ['songId'],
-      where: { playedAt: { gte: cutoffDate } },
+      where: {
+        playedAt: { gte: cutoffDate },
+        song: songFilter,
+      },
       _count: { id: true },
       orderBy: { _count: { id: 'desc' } },
       take: 15,
@@ -92,9 +118,12 @@ router.get('/dashboard', cacheControl(CacheDuration.MEDIUM), async (req, res, ne
       })
     );
 
-    // Top artists
+    // Top artists - exclude non-songs
     const playsWithSongs = await prisma.play.findMany({
-      where: { playedAt: { gte: cutoffDate } },
+      where: {
+        playedAt: { gte: cutoffDate },
+        song: songFilter,
+      },
       include: { song: true },
     });
 
@@ -109,10 +138,13 @@ router.get('/dashboard', cacheControl(CacheDuration.MEDIUM), async (req, res, ne
       .sort((a, b) => b.plays - a.plays)
       .slice(0, 15);
 
-    // Plays by station
+    // Plays by station - filter non-songs
     const playsByStationData = await prisma.play.groupBy({
       by: ['stationId'],
-      where: { playedAt: { gte: cutoffDate } },
+      where: {
+        playedAt: { gte: cutoffDate },
+        song: songFilter,
+      },
       _count: { id: true },
       orderBy: { _count: { id: 'desc' } },
     });
@@ -127,10 +159,13 @@ router.get('/dashboard', cacheControl(CacheDuration.MEDIUM), async (req, res, ne
       })
     );
 
-    // Plays by genre (from station tags)
+    // Plays by genre (from station tags) - filter non-songs
     const genreCounts: Record<string, number> = {};
     const playsWithStations = await prisma.play.findMany({
-      where: { playedAt: { gte: cutoffDate } },
+      where: {
+        playedAt: { gte: cutoffDate },
+        song: songFilter,
+      },
       include: { station: true },
     });
 
@@ -145,16 +180,28 @@ router.get('/dashboard', cacheControl(CacheDuration.MEDIUM), async (req, res, ne
       .sort((a, b) => b.plays - a.plays)
       .slice(0, 10);
 
-    // Plays by hour of day
-    const playsByHourData = await prisma.$queryRaw<{ hour: number; plays: number }[]>`
-      SELECT
-        EXTRACT(HOUR FROM played_at)::int as hour,
-        COUNT(*)::int as plays
-      FROM plays
-      WHERE played_at >= ${cutoffDate}
-      GROUP BY EXTRACT(HOUR FROM played_at)
-      ORDER BY hour ASC
-    `;
+    // Plays by hour of day - filter non-songs
+    const playsByHourData = includeNonSongs
+      ? await prisma.$queryRaw<{ hour: number; plays: number }[]>`
+          SELECT
+            EXTRACT(HOUR FROM played_at)::int as hour,
+            COUNT(*)::int as plays
+          FROM plays
+          WHERE played_at >= ${cutoffDate}
+          GROUP BY EXTRACT(HOUR FROM played_at)
+          ORDER BY hour ASC
+        `
+      : await prisma.$queryRaw<{ hour: number; plays: number }[]>`
+          SELECT
+            EXTRACT(HOUR FROM p.played_at)::int as hour,
+            COUNT(*)::int as plays
+          FROM plays p
+          JOIN songs s ON p.song_id = s.id
+          WHERE p.played_at >= ${cutoffDate}
+            AND s.is_non_song = false
+          GROUP BY EXTRACT(HOUR FROM p.played_at)
+          ORDER BY hour ASC
+        `;
 
     res.json({
       totalPlays,
@@ -167,6 +214,7 @@ router.get('/dashboard', cacheControl(CacheDuration.MEDIUM), async (req, res, ne
       playsByStation,
       playsByGenre,
       playsByHour: playsByHourData,
+      includeNonSongs,
     });
   } catch (error) {
     next(error);
@@ -206,59 +254,108 @@ router.get('/station/:id', cacheControl(CacheDuration.MEDIUM), async (req, res, 
 });
 
 // GET /api/analytics/song-momentum - Track song momentum and trends (cache 10 minutes)
+// Query params:
+//   - limit: number of results (default: 50)
+//   - days: time window in days (default: 7)
+//   - includeNonSongs: 'true' to include shows/commercials (default: false)
 router.get('/song-momentum', cacheControl(CacheDuration.LONG), async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit as string) || 50;
     const days = parseInt(req.query.days as string) || 7;
+    const includeNonSongs = req.query.includeNonSongs === 'true';
 
     const dateThreshold = new Date();
     dateThreshold.setDate(dateThreshold.getDate() - days);
     const previousPeriodStart = new Date(dateThreshold);
     previousPeriodStart.setDate(previousPeriodStart.getDate() - days);
 
-    // Compare current period vs previous period
-    const momentum = await prisma.$queryRaw`
-      WITH current_period AS (
-        SELECT
-          "songId",
-          COUNT(*) as current_plays,
-          COUNT(DISTINCT "stationId") as current_stations
-        FROM plays
-        WHERE "playedAt" >= ${dateThreshold}
-        GROUP BY "songId"
-      ),
-      previous_period AS (
-        SELECT
-          "songId",
-          COUNT(*) as previous_plays
-        FROM plays
-        WHERE "playedAt" >= ${previousPeriodStart} AND "playedAt" < ${dateThreshold}
-        GROUP BY "songId"
-      )
-      SELECT
-        s.id,
-        s.title,
-        s.artist,
-        cp.current_plays,
-        cp.current_stations,
-        COALESCE(pp.previous_plays, 0) as previous_plays,
-        (cp.current_plays - COALESCE(pp.previous_plays, 0)) as momentum_delta,
-        CASE
-          WHEN COALESCE(pp.previous_plays, 0) > 0
-          THEN ((cp.current_plays - COALESCE(pp.previous_plays, 0))::float / pp.previous_plays::float * 100)
-          ELSE 100
-        END as momentum_percent
-      FROM songs s
-      JOIN current_period cp ON s.id = cp."songId"
-      LEFT JOIN previous_period pp ON s.id = pp."songId"
-      WHERE cp.current_plays > 5
-      ORDER BY momentum_delta DESC
-      LIMIT ${limit}
-    `;
+    // Compare current period vs previous period (exclude non-songs by default)
+    const momentum = includeNonSongs
+      ? await prisma.$queryRaw`
+          WITH current_period AS (
+            SELECT
+              song_id,
+              COUNT(*) as current_plays,
+              COUNT(DISTINCT station_id) as current_stations
+            FROM plays
+            WHERE played_at >= ${dateThreshold}
+            GROUP BY song_id
+          ),
+          previous_period AS (
+            SELECT
+              song_id,
+              COUNT(*) as previous_plays
+            FROM plays
+            WHERE played_at >= ${previousPeriodStart} AND played_at < ${dateThreshold}
+            GROUP BY song_id
+          )
+          SELECT
+            s.id,
+            s.title,
+            s.artist,
+            cp.current_plays,
+            cp.current_stations,
+            COALESCE(pp.previous_plays, 0) as previous_plays,
+            (cp.current_plays - COALESCE(pp.previous_plays, 0)) as momentum_delta,
+            CASE
+              WHEN COALESCE(pp.previous_plays, 0) > 0
+              THEN ((cp.current_plays - COALESCE(pp.previous_plays, 0))::float / pp.previous_plays::float * 100)
+              ELSE 100
+            END as momentum_percent
+          FROM songs s
+          JOIN current_period cp ON s.id = cp.song_id
+          LEFT JOIN previous_period pp ON s.id = pp.song_id
+          WHERE cp.current_plays > 5
+          ORDER BY momentum_delta DESC
+          LIMIT ${limit}
+        `
+      : await prisma.$queryRaw`
+          WITH current_period AS (
+            SELECT
+              p.song_id,
+              COUNT(*) as current_plays,
+              COUNT(DISTINCT p.station_id) as current_stations
+            FROM plays p
+            JOIN songs s ON p.song_id = s.id
+            WHERE p.played_at >= ${dateThreshold}
+              AND s.is_non_song = false
+            GROUP BY p.song_id
+          ),
+          previous_period AS (
+            SELECT
+              p.song_id,
+              COUNT(*) as previous_plays
+            FROM plays p
+            JOIN songs s ON p.song_id = s.id
+            WHERE p.played_at >= ${previousPeriodStart} AND p.played_at < ${dateThreshold}
+              AND s.is_non_song = false
+            GROUP BY p.song_id
+          )
+          SELECT
+            s.id,
+            s.title,
+            s.artist,
+            cp.current_plays,
+            cp.current_stations,
+            COALESCE(pp.previous_plays, 0) as previous_plays,
+            (cp.current_plays - COALESCE(pp.previous_plays, 0)) as momentum_delta,
+            CASE
+              WHEN COALESCE(pp.previous_plays, 0) > 0
+              THEN ((cp.current_plays - COALESCE(pp.previous_plays, 0))::float / pp.previous_plays::float * 100)
+              ELSE 100
+            END as momentum_percent
+          FROM songs s
+          JOIN current_period cp ON s.id = cp.song_id
+          LEFT JOIN previous_period pp ON s.id = pp.song_id
+          WHERE cp.current_plays > 5
+          ORDER BY momentum_delta DESC
+          LIMIT ${limit}
+        `;
 
     res.json({
       timeframe: `${days} days`,
-      songs: momentum
+      songs: momentum,
+      includeNonSongs,
     });
   } catch (error) {
     next(error);
@@ -266,64 +363,111 @@ router.get('/song-momentum', cacheControl(CacheDuration.LONG), async (req, res, 
 });
 
 // GET /api/analytics/cross-station - Analyze cross-station patterns (cache 10 minutes)
+// Query params:
+//   - days: time window in days (default: 30)
+//   - includeNonSongs: 'true' to include shows/commercials (default: false)
 router.get('/cross-station', cacheControl(CacheDuration.LONG), async (req, res, next) => {
   try {
     const days = parseInt(req.query.days as string) || 30;
+    const includeNonSongs = req.query.includeNonSongs === 'true';
 
     const dateThreshold = new Date();
     dateThreshold.setDate(dateThreshold.getDate() - days);
 
-    // Find songs played on multiple stations
-    const crossStationSongs = await prisma.$queryRaw`
-      SELECT
-        s.id,
-        s.title,
-        s.artist,
-        COUNT(DISTINCT p."stationId") as station_count,
-        COUNT(p.id) as total_plays,
-        array_agg(DISTINCT st.name) as stations,
-        MAX(p."playedAt") as last_played
-      FROM songs s
-      JOIN plays p ON s.id = p."songId"
-      JOIN stations st ON p."stationId" = st.id
-      WHERE p."playedAt" >= ${dateThreshold}
-      GROUP BY s.id, s.title, s.artist
-      HAVING COUNT(DISTINCT p."stationId") > 1
-      ORDER BY COUNT(DISTINCT p."stationId") DESC, COUNT(p.id) DESC
-      LIMIT 100
-    `;
+    // Find songs played on multiple stations (exclude non-songs by default)
+    const crossStationSongs = includeNonSongs
+      ? await prisma.$queryRaw`
+          SELECT
+            s.id,
+            s.title,
+            s.artist,
+            COUNT(DISTINCT p.station_id) as station_count,
+            COUNT(p.id) as total_plays,
+            array_agg(DISTINCT st.name) as stations,
+            MAX(p.played_at) as last_played
+          FROM songs s
+          JOIN plays p ON s.id = p.song_id
+          JOIN stations st ON p.station_id = st.id
+          WHERE p.played_at >= ${dateThreshold}
+          GROUP BY s.id, s.title, s.artist
+          HAVING COUNT(DISTINCT p.station_id) > 1
+          ORDER BY COUNT(DISTINCT p.station_id) DESC, COUNT(p.id) DESC
+          LIMIT 100
+        `
+      : await prisma.$queryRaw`
+          SELECT
+            s.id,
+            s.title,
+            s.artist,
+            COUNT(DISTINCT p.station_id) as station_count,
+            COUNT(p.id) as total_plays,
+            array_agg(DISTINCT st.name) as stations,
+            MAX(p.played_at) as last_played
+          FROM songs s
+          JOIN plays p ON s.id = p.song_id
+          JOIN stations st ON p.station_id = st.id
+          WHERE p.played_at >= ${dateThreshold}
+            AND s.is_non_song = false
+          GROUP BY s.id, s.title, s.artist
+          HAVING COUNT(DISTINCT p.station_id) > 1
+          ORDER BY COUNT(DISTINCT p.station_id) DESC, COUNT(p.id) DESC
+          LIMIT 100
+        `;
 
-    // Station overlap analysis
-    const stationOverlap = await prisma.$queryRaw`
-      WITH station_pairs AS (
-        SELECT
-          p1."stationId" as station_a,
-          p2."stationId" as station_b,
-          COUNT(DISTINCT p1."songId") as shared_songs
-        FROM plays p1
-        JOIN plays p2 ON p1."songId" = p2."songId" AND p1."stationId" < p2."stationId"
-        WHERE p1."playedAt" >= ${dateThreshold}
-          AND p2."playedAt" >= ${dateThreshold}
-        GROUP BY p1."stationId", p2."stationId"
-      )
-      SELECT
-        sa.name as station_a_name,
-        sb.name as station_b_name,
-        sp.shared_songs,
-        array_agg(DISTINCT sa.tags) as station_a_tags,
-        array_agg(DISTINCT sb.tags) as station_b_tags
-      FROM station_pairs sp
-      JOIN stations sa ON sp.station_a = sa.id
-      JOIN stations sb ON sp.station_b = sb.id
-      GROUP BY sa.name, sb.name, sp.shared_songs
-      ORDER BY sp.shared_songs DESC
-      LIMIT 20
-    `;
+    // Station overlap analysis (exclude non-songs by default)
+    const stationOverlap = includeNonSongs
+      ? await prisma.$queryRaw`
+          WITH station_pairs AS (
+            SELECT
+              p1.station_id as station_a,
+              p2.station_id as station_b,
+              COUNT(DISTINCT p1.song_id) as shared_songs
+            FROM plays p1
+            JOIN plays p2 ON p1.song_id = p2.song_id AND p1.station_id < p2.station_id
+            WHERE p1.played_at >= ${dateThreshold}
+              AND p2.played_at >= ${dateThreshold}
+            GROUP BY p1.station_id, p2.station_id
+          )
+          SELECT
+            sa.name as station_a_name,
+            sb.name as station_b_name,
+            sp.shared_songs
+          FROM station_pairs sp
+          JOIN stations sa ON sp.station_a = sa.id
+          JOIN stations sb ON sp.station_b = sb.id
+          ORDER BY sp.shared_songs DESC
+          LIMIT 20
+        `
+      : await prisma.$queryRaw`
+          WITH station_pairs AS (
+            SELECT
+              p1.station_id as station_a,
+              p2.station_id as station_b,
+              COUNT(DISTINCT p1.song_id) as shared_songs
+            FROM plays p1
+            JOIN plays p2 ON p1.song_id = p2.song_id AND p1.station_id < p2.station_id
+            JOIN songs s ON p1.song_id = s.id
+            WHERE p1.played_at >= ${dateThreshold}
+              AND p2.played_at >= ${dateThreshold}
+              AND s.is_non_song = false
+            GROUP BY p1.station_id, p2.station_id
+          )
+          SELECT
+            sa.name as station_a_name,
+            sb.name as station_b_name,
+            sp.shared_songs
+          FROM station_pairs sp
+          JOIN stations sa ON sp.station_a = sa.id
+          JOIN stations sb ON sp.station_b = sb.id
+          ORDER BY sp.shared_songs DESC
+          LIMIT 20
+        `;
 
     res.json({
       crossStationSongs,
       stationOverlap,
-      timeframe: `${days} days`
+      timeframe: `${days} days`,
+      includeNonSongs,
     });
   } catch (error) {
     next(error);
@@ -342,13 +486,13 @@ router.get('/genre-evolution', cacheControl(CacheDuration.LONG), async (req, res
     const genreEvolution = await prisma.$queryRaw`
       WITH monthly_plays AS (
         SELECT
-          DATE_TRUNC('month', p."playedAt") as month,
+          DATE_TRUNC('month', p.played_at) as month,
           s.tags,
           COUNT(p.id) as play_count
         FROM plays p
-        JOIN stations s ON p."stationId" = s.id
-        WHERE p."playedAt" >= ${startDate}
-        GROUP BY DATE_TRUNC('month', p."playedAt"), s.tags
+        JOIN stations s ON p.station_id = s.id
+        WHERE p.played_at >= ${startDate}
+        GROUP BY DATE_TRUNC('month', p.played_at), s.tags
       )
       SELECT
         month,
@@ -386,13 +530,13 @@ router.get('/artist-insights/:artist', cacheControl(CacheDuration.MEDIUM), async
         s.id,
         s.title,
         COUNT(p.id) as total_plays,
-        COUNT(DISTINCT p."stationId") as stations_played_on,
-        MIN(p."playedAt") as first_played,
-        MAX(p."playedAt") as last_played,
+        COUNT(DISTINCT p.station_id) as stations_played_on,
+        MIN(p.played_at) as first_played,
+        MAX(p.played_at) as last_played,
         array_agg(DISTINCT st.name) as stations
       FROM songs s
-      JOIN plays p ON s.id = p."songId"
-      JOIN stations st ON p."stationId" = st.id
+      JOIN plays p ON s.id = p.song_id
+      JOIN stations st ON p.station_id = st.id
       WHERE s.artist = ${artist}
       GROUP BY s.id, s.title
       ORDER BY COUNT(p.id) DESC
@@ -404,13 +548,13 @@ router.get('/artist-insights/:artist', cacheControl(CacheDuration.MEDIUM), async
 
     const playTrend = await prisma.$queryRaw`
       SELECT
-        DATE(p."playedAt") as date,
+        DATE(p.played_at) as date,
         COUNT(p.id)::int as plays
       FROM plays p
-      JOIN songs s ON p."songId" = s.id
+      JOIN songs s ON p.song_id = s.id
       WHERE s.artist = ${artist}
-        AND p."playedAt" >= ${thirtyDaysAgo}
-      GROUP BY DATE(p."playedAt")
+        AND p.played_at >= ${thirtyDaysAgo}
+      GROUP BY DATE(p.played_at)
       ORDER BY date ASC
     `;
 

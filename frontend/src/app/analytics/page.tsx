@@ -18,7 +18,7 @@ import {
   Select,
   Button,
 } from '@chakra-ui/react';
-import { FaChartLine, FaArrowLeft, FaTrophy, FaClock, FaMusic } from 'react-icons/fa';
+import { FaChartLine, FaArrowLeft, FaTrophy, FaClock, FaMusic, FaFire, FaExchangeAlt } from 'react-icons/fa';
 import Link from 'next/link';
 import { useRefresh } from '@/context/RefreshContext';
 import {
@@ -63,6 +63,9 @@ export default function AnalyticsPage() {
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const tooltipBg = useColorModeValue('#ffffff', '#1a202c');
+  const tooltipText = useColorModeValue('#1a202c', '#ffffff');
+  const tooltipBorder = useColorModeValue('#e2e8f0', '#4a5568');
 
   useEffect(() => {
     fetchAnalytics();
@@ -123,6 +126,37 @@ export default function AnalyticsPage() {
             </HStack>
           </HStack>
 
+          {/* Sub-navigation */}
+          <HStack spacing={4}>
+            <Button
+              as={Link}
+              href="/analytics"
+              leftIcon={<FaChartLine />}
+              colorScheme="brand"
+              size="sm"
+            >
+              Dashboard
+            </Button>
+            <Button
+              as={Link}
+              href="/insights"
+              leftIcon={<FaFire />}
+              variant="outline"
+              size="sm"
+            >
+              Advanced Insights
+            </Button>
+            <Button
+              as={Link}
+              href="/compare"
+              leftIcon={<FaExchangeAlt />}
+              variant="outline"
+              size="sm"
+            >
+              Station Comparison
+            </Button>
+          </HStack>
+
           {/* Key Metrics */}
           <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
             <Box bg={cardBg} p={6} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
@@ -169,7 +203,7 @@ export default function AnalyticsPage() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
-                <Tooltip />
+                <Tooltip contentStyle={{ backgroundColor: tooltipBg, color: tooltipText, border: `1px solid ${tooltipBorder}` }} />
                 <Legend />
                 <Line type="monotone" dataKey="plays" stroke="#8884d8" strokeWidth={2} />
               </LineChart>
@@ -189,7 +223,7 @@ export default function AnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" />
                   <YAxis dataKey="song" type="category" width={150} tick={{ fontSize: 12 }} />
-                  <Tooltip />
+                  <Tooltip contentStyle={{ backgroundColor: tooltipBg, color: tooltipText, border: `1px solid ${tooltipBorder}` }} />
                   <Bar dataKey="plays" fill="#8884d8" />
                 </BarChart>
               </ResponsiveContainer>
@@ -205,7 +239,7 @@ export default function AnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="artist" angle={-45} textAnchor="end" height={100} tick={{ fontSize: 11 }} />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip contentStyle={{ backgroundColor: tooltipBg, color: tooltipText, border: `1px solid ${tooltipBorder}` }} />
                   <Bar dataKey="plays" fill="#82ca9d" />
                 </BarChart>
               </ResponsiveContainer>
@@ -231,7 +265,7 @@ export default function AnalyticsPage() {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip contentStyle={{ backgroundColor: tooltipBg, color: tooltipText, border: `1px solid ${tooltipBorder}` }} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -247,7 +281,7 @@ export default function AnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="hour" label={{ value: 'Hour', position: 'insideBottom', offset: -5 }} />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip contentStyle={{ backgroundColor: tooltipBg, color: tooltipText, border: `1px solid ${tooltipBorder}` }} />
                   <Bar dataKey="plays" fill="#ffc658" />
                 </BarChart>
               </ResponsiveContainer>
@@ -265,7 +299,7 @@ export default function AnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="genre" />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip contentStyle={{ backgroundColor: tooltipBg, color: tooltipText, border: `1px solid ${tooltipBorder}` }} />
                   <Bar dataKey="plays" fill="#ff8042" />
                 </BarChart>
               </ResponsiveContainer>
