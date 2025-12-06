@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import {
   Box,
   Container,
@@ -33,9 +33,9 @@ import { format } from 'date-fns';
 import api from '@/services/api';
 
 export default function StationPage({ params }: { params: Promise<{ slug: string }> }) {
-  const [slug, setSlug] = useState<string | null>(null);
-  const { station, isLoading } = useStation(slug || '');
-  const { data: currentData, mutate } = useCurrentSong(slug || '');
+  const { slug } = use(params);
+  const { station, isLoading } = useStation(slug);
+  const { data: currentData, mutate } = useCurrentSong(slug);
   const socket = useSocket();
   const [history, setHistory] = useState<Play[]>([]);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
@@ -44,10 +44,6 @@ export default function StationPage({ params }: { params: Promise<{ slug: string
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
-
-  useEffect(() => {
-    params.then((p) => setSlug(p.slug));
-  }, [params]);
 
   useEffect(() => {
     if (currentData?.currentSong) {

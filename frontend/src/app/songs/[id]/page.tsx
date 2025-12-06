@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import {
   Box,
   Container,
@@ -59,19 +59,15 @@ interface SongStats {
 }
 
 export default function SongDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: songId } = use(params);
   const [song, setSong] = useState<Song | null>(null);
   const [stats, setStats] = useState<SongStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [spotifyUrl, setSpotifyUrl] = useState<string | null>(null);
-  const [songId, setSongId] = useState<string | null>(null);
 
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
-
-  useEffect(() => {
-    params.then((p) => setSongId(p.id));
-  }, [params]);
 
   useEffect(() => {
     if (songId) {
