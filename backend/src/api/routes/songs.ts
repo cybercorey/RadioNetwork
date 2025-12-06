@@ -6,20 +6,55 @@ import { cacheControl, CacheDuration } from '../middleware/cacheControl';
 const router = Router();
 
 // GET /api/songs - List all songs (cache 5 minutes)
+// Query params:
+//   - limit, offset: pagination
+//   - filter: 'songs' (default) | 'shows' | 'all' - filter by content type
+//   - search: search query for title/artist
 router.get('/', cacheControl(CacheDuration.MEDIUM), async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit as string) || 100;
     const offset = parseInt(req.query.offset as string) || 0;
-    
-    const songs = await songService.findAll(limit, offset);
-    
+    const contentFilter = req.query.filter as string || 'songs'; // 'songs', 'shows', or 'all'
+    const search = req.query.search as string;
+
+    // Build where clause
+    const where: any = {};
+
+    // Content type filter
+    if (contentFilter === 'songs') {
+      where.isNonSong = false;
+    } else if (contentFilter === 'shows') {
+      where.isNonSong = true;
+    }
+    // 'all' = no filter
+
+    // Search filter
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { artist: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [songs, total] = await Promise.all([
+      prisma.song.findMany({
+        where,
+        take: limit,
+        skip: offset,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.song.count({ where }),
+    ]);
+
     res.json({
       songs,
       pagination: {
+        total,
         limit,
         offset,
-        hasMore: songs.length === limit
-      }
+        hasMore: offset + songs.length < total,
+      },
+      filter: contentFilter,
     });
   } catch (error) {
     next(error);

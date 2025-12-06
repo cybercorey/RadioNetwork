@@ -57,6 +57,8 @@ interface Play {
     id: number;
     title: string;
     artist: string;
+    isNonSong?: boolean;
+    nonSongType?: string | null;
   };
   station: {
     id: number;
@@ -65,6 +67,8 @@ interface Play {
     tags: string[];
   };
 }
+
+type ContentFilter = 'songs' | 'shows' | 'all';
 
 interface DatabaseStats {
   totalPlays: number;
@@ -83,6 +87,7 @@ export default function PlaysPage() {
   const [genreFilter, setGenreFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<SortMode>('recent');
   const [dateFilter, setDateFilter] = useState<string>('all');
+  const [contentFilter, setContentFilter] = useState<ContentFilter>('songs');
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
@@ -110,7 +115,7 @@ export default function PlaysPage() {
     fetchPlays();
     const interval = setInterval(fetchPlays, 60000); // Poll every minute
     return () => clearInterval(interval);
-  }, [page, stationFilter, dateFilter, sortBy]);
+  }, [page, stationFilter, dateFilter, sortBy, contentFilter]);
 
   const fetchDatabaseStats = async () => {
     try {
@@ -128,6 +133,7 @@ export default function PlaysPage() {
       const params = new URLSearchParams({
         limit: limit.toString(),
         offset: (page * limit).toString(),
+        filter: contentFilter, // 'songs', 'shows', or 'all'
       });
 
       if (stationFilter !== 'all') params.append('station', stationFilter);
@@ -405,7 +411,19 @@ export default function PlaysPage() {
                 />
               </InputGroup>
 
-              <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4}>
+              <SimpleGrid columns={{ base: 1, md: 2, lg: 5 }} spacing={4}>
+                <Select
+                  value={contentFilter}
+                  onChange={(e) => {
+                    setContentFilter(e.target.value as ContentFilter);
+                    setPage(0);
+                  }}
+                >
+                  <option value="songs">Songs Only</option>
+                  <option value="shows">Shows Only</option>
+                  <option value="all">All Content</option>
+                </Select>
+
                 <Select
                   value={dateFilter}
                   onChange={(e) => {
@@ -461,7 +479,7 @@ export default function PlaysPage() {
                 </Select>
               </SimpleGrid>
 
-              {(searchQuery || stationFilter !== 'all' || genreFilter !== 'all' || dateFilter !== 'all') && (
+              {(searchQuery || stationFilter !== 'all' || genreFilter !== 'all' || dateFilter !== 'all' || contentFilter !== 'songs') && (
                 <Button
                   size="sm"
                   variant="ghost"
@@ -470,6 +488,7 @@ export default function PlaysPage() {
                     setStationFilter('all');
                     setGenreFilter('all');
                     setDateFilter('all');
+                    setContentFilter('songs');
                     setPage(0);
                   }}
                 >
@@ -511,15 +530,22 @@ export default function PlaysPage() {
                         </Text>
                       </Td>
                       <Td>
-                        <ChakraLink
-                          as={Link}
-                          href={`/songs/${play.songId}`}
-                          fontWeight="semibold"
-                          color="brand.500"
-                          _hover={{ textDecoration: 'underline' }}
-                        >
-                          {play.song.title}
-                        </ChakraLink>
+                        <HStack spacing={2}>
+                          <ChakraLink
+                            as={Link}
+                            href={`/songs/${play.songId}`}
+                            fontWeight="semibold"
+                            color="brand.500"
+                            _hover={{ textDecoration: 'underline' }}
+                          >
+                            {play.song.title}
+                          </ChakraLink>
+                          {play.song.isNonSong && (
+                            <Badge colorScheme="orange" size="sm" variant="solid">
+                              {play.song.nonSongType?.toUpperCase() || 'SHOW'}
+                            </Badge>
+                          )}
+                        </HStack>
                       </Td>
                       <Td>
                         <Text>{play.song.artist}</Text>

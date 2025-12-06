@@ -27,6 +27,13 @@ router.get('/stats', async (req, res, next) => {
 });
 
 // GET /api/plays/recent - Get recent plays with pagination and filtering
+// Query params:
+//   - limit, offset: pagination
+//   - station: filter by station slug
+//   - genre: filter by genre tag
+//   - search: search in title/artist/station
+//   - dateFilter: '24h' | '7d' | '30d' | 'all'
+//   - filter: 'songs' (default) | 'shows' | 'all' - filter by content type
 router.get('/recent', async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit as string) || 50;
@@ -35,9 +42,18 @@ router.get('/recent', async (req, res, next) => {
     const genre = req.query.genre as string;
     const search = req.query.search as string;
     const dateFilter = req.query.dateFilter as string;
+    const contentFilter = req.query.filter as string || 'songs'; // 'songs', 'shows', or 'all'
 
     // Build where clause
     const where: any = {};
+
+    // Content type filter (songs vs shows)
+    if (contentFilter === 'songs') {
+      where.song = { isNonSong: false };
+    } else if (contentFilter === 'shows') {
+      where.song = { isNonSong: true };
+    }
+    // 'all' = no filter
 
     // Station filter
     if (stationSlug && stationSlug !== 'all') {
@@ -106,6 +122,7 @@ router.get('/recent', async (req, res, next) => {
         offset,
         hasMore: offset + plays.length < total,
       },
+      filter: contentFilter,
     });
   } catch (error) {
     next(error);
@@ -113,15 +130,29 @@ router.get('/recent', async (req, res, next) => {
 });
 
 // GET /api/plays/most-played - Get most played songs with pagination
+// Query params:
+//   - limit, offset: pagination
+//   - station: filter by station slug
+//   - dateFilter: '24h' | '7d' | '30d' | 'all'
+//   - filter: 'songs' (default) | 'shows' | 'all' - filter by content type
 router.get('/most-played', async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = parseInt(req.query.offset as string) || 0;
     const stationSlug = req.query.station as string;
     const dateFilter = req.query.dateFilter as string;
+    const contentFilter = req.query.filter as string || 'songs'; // 'songs', 'shows', or 'all'
 
     // Build where clause for filtering
     const where: any = {};
+
+    // Content type filter (songs vs shows)
+    if (contentFilter === 'songs') {
+      where.song = { isNonSong: false };
+    } else if (contentFilter === 'shows') {
+      where.song = { isNonSong: true };
+    }
+    // 'all' = no filter
 
     // Station filter
     if (stationSlug && stationSlug !== 'all') {
@@ -197,6 +228,7 @@ router.get('/most-played', async (req, res, next) => {
         offset,
         hasMore: offset + results.length < total,
       },
+      filter: contentFilter,
     });
   } catch (error) {
     next(error);

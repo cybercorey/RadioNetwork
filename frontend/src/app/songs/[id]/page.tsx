@@ -38,6 +38,8 @@ interface Song {
   title: string;
   artist: string;
   createdAt: string;
+  isNonSong?: boolean;
+  nonSongType?: string | null;
 }
 
 interface Station {
@@ -161,7 +163,14 @@ export default function SongDetailPage({ params }: { params: Promise<{ id: strin
               <HStack>
                 <FaMusic size={32} color="var(--chakra-colors-brand-500)" />
                 <VStack align="start" spacing={1}>
-                  <Heading size="2xl">{song.title}</Heading>
+                  <HStack spacing={3}>
+                    <Heading size="2xl">{song.title}</Heading>
+                    {song.isNonSong && (
+                      <Badge colorScheme="orange" fontSize="md" px={3} py={1}>
+                        {song.nonSongType?.toUpperCase() || 'SHOW'}
+                      </Badge>
+                    )}
+                  </HStack>
                   <Text fontSize="xl" color="gray.500">
                     {song.artist}
                   </Text>

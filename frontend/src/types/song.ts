@@ -5,6 +5,8 @@ export interface Song {
   titleNormalized: string;
   artistNormalized: string;
   duration?: number;
+  isNonSong: boolean;
+  nonSongType?: string | null; // 'show', 'commercial', 'station-id', 'weather', 'news', 'other'
   createdAt: string;
   playCount?: number;
 }
