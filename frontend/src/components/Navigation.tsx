@@ -6,7 +6,8 @@ import {
   HStack,
   Button,
   useColorModeValue,
-  Heading,
+  Image,
+  Text,
 } from '@chakra-ui/react';
 import Link from 'next/link';
 import { FaHome, FaHistory, FaChartLine, FaSearch, FaFire, FaExchangeAlt } from 'react-icons/fa';
@@ -26,9 +27,12 @@ export default function Navigation() {
     >
       <Container maxW="container.xl">
         <HStack justify="space-between" py={4}>
-          <Heading size="md">
-            <Link href="/">RadioNetwork v2</Link>
-          </Heading>
+          <Link href="/">
+            <HStack spacing={2}>
+              <Image src="/logo.svg" alt="RadioNetwork Logo" boxSize="32px" />
+              <Text fontSize="lg" fontWeight="bold">RadioNetwork</Text>
+            </HStack>
+          </Link>
           <HStack spacing={4}>
             <Button
               as={Link}

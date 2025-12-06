@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Radio wave circles -->
+  <circle cx="24" cy="24" r="22" stroke="#4F46E5" stroke-width="2" fill="none" opacity="0.3"/>
+  <circle cx="24" cy="24" r="16" stroke="#4F46E5" stroke-width="2" fill="none" opacity="0.5"/>
+  <circle cx="24" cy="24" r="10" stroke="#4F46E5" stroke-width="2" fill="none" opacity="0.7"/>
+
+  <!-- Center broadcast icon -->
+  <circle cx="24" cy="24" r="5" fill="#4F46E5"/>
+
+  <!-- Signal bars -->
+  <path d="M16 20C13.5 22.5 13.5 25.5 16 28" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <path d="M12 17C8 21 8 27 12 31" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+
+  <path d="M32 20C34.5 22.5 34.5 25.5 32 28" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <path d="M36 17C40 21 40 27 36 31" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+</svg>

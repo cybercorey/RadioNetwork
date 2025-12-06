@@ -1,4 +1,6 @@
-# RadioNetwork v2
+<p align="center">
+  <img src="frontend/public/banner.svg" alt="RadioNetwork Banner" width="800">
+</p>
 
 Modern radio station tracking system for New Zealand radio stations.
 

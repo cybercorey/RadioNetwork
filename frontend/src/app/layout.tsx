@@ -6,6 +6,9 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'RadioNetwork v2',
   description: 'Modern NZ radio station tracking system',
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({

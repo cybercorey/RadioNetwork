@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#4F46E5"/>
+      <stop offset="100%" style="stop-color:#7C3AED"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="200" fill="url(#bgGrad)" rx="12"/>
+
+  <!-- Decorative wave pattern -->
+  <path d="M0 150 Q100 130 200 150 T400 150 T600 150 T800 150 L800 200 L0 200 Z" fill="#4F46E5" opacity="0.1"/>
+  <path d="M0 160 Q100 145 200 160 T400 160 T600 160 T800 160 L800 200 L0 200 Z" fill="#4F46E5" opacity="0.15"/>
+  <path d="M0 175 Q100 165 200 175 T400 175 T600 175 T800 175 L800 200 L0 200 Z" fill="#4F46E5" opacity="0.2"/>
+
+  <!-- Logo icon -->
+  <g transform="translate(60, 50)">
+    <!-- Radio wave circles -->
+    <circle cx="50" cy="50" r="45" stroke="#4F46E5" stroke-width="2" fill="none" opacity="0.3"/>
+    <circle cx="50" cy="50" r="33" stroke="#4F46E5" stroke-width="2" fill="none" opacity="0.5"/>
+    <circle cx="50" cy="50" r="21" stroke="#4F46E5" stroke-width="2" fill="none" opacity="0.7"/>
+
+    <!-- Center broadcast icon -->
+    <circle cx="50" cy="50" r="10" fill="#4F46E5"/>
+
+    <!-- Signal bars left -->
+    <path d="M33 42C28 47 28 53 33 58" stroke="#10B981" stroke-width="3" stroke-linecap="round" fill="none"/>
+    <path d="M25 35C17 43 17 57 25 65" stroke="#10B981" stroke-width="3" stroke-linecap="round" fill="none"/>
+
+    <!-- Signal bars right -->
+    <path d="M67 42C72 47 72 53 67 58" stroke="#10B981" stroke-width="3" stroke-linecap="round" fill="none"/>
+    <path d="M75 35C83 43 83 57 75 65" stroke="#10B981" stroke-width="3" stroke-linecap="round" fill="none"/>
+  </g>
+
+  <!-- Text -->
+  <text x="190" y="95" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="700" fill="white">RadioNetwork</text>
+  <text x="190" y="130" font-family="system-ui, -apple-system, sans-serif" font-size="20" fill="#A5B4FC">NZ Radio Station Tracking System</text>
+
+  <!-- Version badge -->
+  <rect x="502" y="67" width="45" height="24" rx="12" fill="url(#accentGrad)"/>
+  <text x="524" y="84" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="white" text-anchor="middle">v2</text>
+
+  <!-- Feature icons -->
+  <g transform="translate(190, 145)" fill="#6B7280">
+    <circle cx="8" cy="8" r="4" fill="#10B981"/>
+    <text x="18" y="12" font-family="system-ui, -apple-system, sans-serif" font-size="12">Real-time Tracking</text>
+
+    <circle cx="158" cy="8" r="4" fill="#F59E0B"/>
+    <text x="168" y="12" font-family="system-ui, -apple-system, sans-serif" font-size="12">Analytics</text>
+
+    <circle cx="268" cy="8" r="4" fill="#3B82F6"/>
+    <text x="278" y="12" font-family="system-ui, -apple-system, sans-serif" font-size="12">Live Updates</text>
+  </g>
+</svg>
