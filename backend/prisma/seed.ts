@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 const stations = [
-  // NZME Stations - Use Rova scraping
+  // NZME Stations - Use Rova scraping (ICY streams discontinued)
   {
     name: 'ZM',
     slug: 'zm',
@@ -13,7 +13,7 @@ const stations = [
     tags: ['Top 40', 'Pop', 'Hit Music'],
     isActive: true,
     scrapeInterval: 60,
-    metadataType: 'icy' // NZME stations don't support Rova currently
+    metadataType: 'rova'
   },
   {
     name: 'The Edge',
@@ -35,7 +35,7 @@ const stations = [
     tags: ['Rock', 'Classic Rock', 'Alternative'],
     isActive: true,
     scrapeInterval: 60,
-    metadataType: 'icy'
+    metadataType: 'rova'
   },
   {
     name: 'Newstalk ZB',
@@ -44,9 +44,9 @@ const stations = [
     homepageUrl: 'https://www.newstalkzb.co.nz',
     countryCode: 'NZ',
     tags: ['News', 'Talk', 'Current Affairs'],
-    isActive: true,
+    isActive: false, // Disable - news station, not music
     scrapeInterval: 120,
-    metadataType: 'icy'
+    metadataType: 'rova'
   },
   {
     name: 'Coast',
@@ -57,7 +57,7 @@ const stations = [
     tags: ['Easy Listening', 'Adult Contemporary', 'Classic Hits'],
     isActive: true,
     scrapeInterval: 60,
-    metadataType: 'icy'
+    metadataType: 'rova'
   },
   // MediaWorks Stations - Use Rova scraping
   {

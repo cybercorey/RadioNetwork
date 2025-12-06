@@ -6,4 +6,6 @@ export const rateLimiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  // Trust the first proxy (Traefik) for accurate IP detection
+  validate: { trustProxy: false }, // Disable the strict validation since we trust our proxy
 });
