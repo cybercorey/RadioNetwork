@@ -5,10 +5,6 @@ on:
     branches:
       - v2
       - master
-    paths:
-      - 'backend/**'
-      - 'database/**'
-      - '.github/workflows/docker-build.yml'
   release:
     types: [published]
   workflow_dispatch:
