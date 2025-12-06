@@ -25,7 +25,7 @@ import {
 import { useStations } from '@/hooks/useStations';
 import { useSocket } from '@/hooks/useSocket';
 import Link from 'next/link';
-import { FaMusic, FaBroadcastTower, FaChartLine, FaHistory, FaSearch, FaListAlt, FaLightbulb } from 'react-icons/fa';
+import { FaMusic, FaBroadcastTower, FaChartLine, FaHistory, FaSearch, FaListAlt, FaLightbulb, FaExchangeAlt } from 'react-icons/fa';
 import { Song } from '@/types/song';
 import { Station } from '@/types/station';
 import api from '@/services/api';
@@ -131,7 +131,7 @@ export default function Home() {
           </Box>
 
           {/* Quick Links */}
-          <SimpleGrid columns={{ base: 2, md: 5 }} spacing={4}>
+          <SimpleGrid columns={{ base: 2, md: 6 }} spacing={4}>
             <Button
               as={Link}
               href="/playlists"
@@ -205,6 +205,21 @@ export default function Home() {
               <VStack spacing={1}>
                 <Text>Search</Text>
                 <Text fontSize="xs" fontWeight="normal">Find Songs</Text>
+              </VStack>
+            </Button>
+            <Button
+              as={Link}
+              href="/compare"
+              size="lg"
+              variant="outline"
+              colorScheme="red"
+              leftIcon={<Icon as={FaExchangeAlt} />}
+              h="auto"
+              py={6}
+            >
+              <VStack spacing={1}>
+                <Text>Compare</Text>
+                <Text fontSize="xs" fontWeight="normal">Station Analysis</Text>
               </VStack>
             </Button>
           </SimpleGrid>
