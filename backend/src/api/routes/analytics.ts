@@ -205,4 +205,232 @@ router.get('/station/:id', cacheControl(CacheDuration.MEDIUM), async (req, res, 
   }
 });
 
+// GET /api/analytics/song-momentum - Track song momentum and trends (cache 10 minutes)
+router.get('/song-momentum', cacheControl(CacheDuration.LONG), async (req, res, next) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 50;
+    const days = parseInt(req.query.days as string) || 7;
+
+    const dateThreshold = new Date();
+    dateThreshold.setDate(dateThreshold.getDate() - days);
+    const previousPeriodStart = new Date(dateThreshold);
+    previousPeriodStart.setDate(previousPeriodStart.getDate() - days);
+
+    // Compare current period vs previous period
+    const momentum = await prisma.$queryRaw`
+      WITH current_period AS (
+        SELECT
+          "songId",
+          COUNT(*) as current_plays,
+          COUNT(DISTINCT "stationId") as current_stations
+        FROM plays
+        WHERE "playedAt" >= ${dateThreshold}
+        GROUP BY "songId"
+      ),
+      previous_period AS (
+        SELECT
+          "songId",
+          COUNT(*) as previous_plays
+        FROM plays
+        WHERE "playedAt" >= ${previousPeriodStart} AND "playedAt" < ${dateThreshold}
+        GROUP BY "songId"
+      )
+      SELECT
+        s.id,
+        s.title,
+        s.artist,
+        cp.current_plays,
+        cp.current_stations,
+        COALESCE(pp.previous_plays, 0) as previous_plays,
+        (cp.current_plays - COALESCE(pp.previous_plays, 0)) as momentum_delta,
+        CASE
+          WHEN COALESCE(pp.previous_plays, 0) > 0
+          THEN ((cp.current_plays - COALESCE(pp.previous_plays, 0))::float / pp.previous_plays::float * 100)
+          ELSE 100
+        END as momentum_percent
+      FROM songs s
+      JOIN current_period cp ON s.id = cp."songId"
+      LEFT JOIN previous_period pp ON s.id = pp."songId"
+      WHERE cp.current_plays > 5
+      ORDER BY momentum_delta DESC
+      LIMIT ${limit}
+    `;
+
+    res.json({
+      timeframe: `${days} days`,
+      songs: momentum
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/analytics/cross-station - Analyze cross-station patterns (cache 10 minutes)
+router.get('/cross-station', cacheControl(CacheDuration.LONG), async (req, res, next) => {
+  try {
+    const days = parseInt(req.query.days as string) || 30;
+
+    const dateThreshold = new Date();
+    dateThreshold.setDate(dateThreshold.getDate() - days);
+
+    // Find songs played on multiple stations
+    const crossStationSongs = await prisma.$queryRaw`
+      SELECT
+        s.id,
+        s.title,
+        s.artist,
+        COUNT(DISTINCT p."stationId") as station_count,
+        COUNT(p.id) as total_plays,
+        array_agg(DISTINCT st.name) as stations,
+        MAX(p."playedAt") as last_played
+      FROM songs s
+      JOIN plays p ON s.id = p."songId"
+      JOIN stations st ON p."stationId" = st.id
+      WHERE p."playedAt" >= ${dateThreshold}
+      GROUP BY s.id, s.title, s.artist
+      HAVING COUNT(DISTINCT p."stationId") > 1
+      ORDER BY COUNT(DISTINCT p."stationId") DESC, COUNT(p.id) DESC
+      LIMIT 100
+    `;
+
+    // Station overlap analysis
+    const stationOverlap = await prisma.$queryRaw`
+      WITH station_pairs AS (
+        SELECT
+          p1."stationId" as station_a,
+          p2."stationId" as station_b,
+          COUNT(DISTINCT p1."songId") as shared_songs
+        FROM plays p1
+        JOIN plays p2 ON p1."songId" = p2."songId" AND p1."stationId" < p2."stationId"
+        WHERE p1."playedAt" >= ${dateThreshold}
+          AND p2."playedAt" >= ${dateThreshold}
+        GROUP BY p1."stationId", p2."stationId"
+      )
+      SELECT
+        sa.name as station_a_name,
+        sb.name as station_b_name,
+        sp.shared_songs,
+        array_agg(DISTINCT sa.tags) as station_a_tags,
+        array_agg(DISTINCT sb.tags) as station_b_tags
+      FROM station_pairs sp
+      JOIN stations sa ON sp.station_a = sa.id
+      JOIN stations sb ON sp.station_b = sb.id
+      GROUP BY sa.name, sb.name, sp.shared_songs
+      ORDER BY sp.shared_songs DESC
+      LIMIT 20
+    `;
+
+    res.json({
+      crossStationSongs,
+      stationOverlap,
+      timeframe: `${days} days`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/analytics/genre-evolution - Track genre evolution over time (cache 1 hour)
+router.get('/genre-evolution', cacheControl(CacheDuration.LONG), async (req, res, next) => {
+  try {
+    const months = parseInt(req.query.months as string) || 6;
+
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - months);
+
+    // Get genre play counts by month
+    const genreEvolution = await prisma.$queryRaw`
+      WITH monthly_plays AS (
+        SELECT
+          DATE_TRUNC('month', p."playedAt") as month,
+          s.tags,
+          COUNT(p.id) as play_count
+        FROM plays p
+        JOIN stations s ON p."stationId" = s.id
+        WHERE p."playedAt" >= ${startDate}
+        GROUP BY DATE_TRUNC('month', p."playedAt"), s.tags
+      )
+      SELECT
+        month,
+        UNNEST(tags) as genre,
+        SUM(play_count) as plays
+      FROM monthly_plays
+      GROUP BY month, UNNEST(tags)
+      ORDER BY month ASC, plays DESC
+    `;
+
+    res.json({
+      evolution: genreEvolution,
+      timeframe: `${months} months`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/analytics/artist-insights/:artist - Deep insights for specific artist (cache 10 minutes)
+router.get('/artist-insights/:artist', cacheControl(CacheDuration.MEDIUM), async (req, res, next) => {
+  try {
+    const artist = req.params.artist;
+
+    // Get all songs by this artist
+    const artistSongs = await prisma.song.findMany({
+      where: { artist }
+    });
+
+    const songIds = artistSongs.map(s => s.id);
+
+    // Get play statistics
+    const playStats = await prisma.$queryRaw`
+      SELECT
+        s.id,
+        s.title,
+        COUNT(p.id) as total_plays,
+        COUNT(DISTINCT p."stationId") as stations_played_on,
+        MIN(p."playedAt") as first_played,
+        MAX(p."playedAt") as last_played,
+        array_agg(DISTINCT st.name) as stations
+      FROM songs s
+      JOIN plays p ON s.id = p."songId"
+      JOIN stations st ON p."stationId" = st.id
+      WHERE s.artist = ${artist}
+      GROUP BY s.id, s.title
+      ORDER BY COUNT(p.id) DESC
+    `;
+
+    // Get play trend over last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const playTrend = await prisma.$queryRaw`
+      SELECT
+        DATE(p."playedAt") as date,
+        COUNT(p.id)::int as plays
+      FROM plays p
+      JOIN songs s ON p."songId" = s.id
+      WHERE s.artist = ${artist}
+        AND p."playedAt" >= ${thirtyDaysAgo}
+      GROUP BY DATE(p."playedAt")
+      ORDER BY date ASC
+    `;
+
+    // Total plays across all songs
+    const totalPlays = await prisma.play.count({
+      where: {
+        songId: { in: songIds }
+      }
+    });
+
+    res.json({
+      artist,
+      totalSongs: artistSongs.length,
+      totalPlays,
+      songs: playStats,
+      playTrend
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

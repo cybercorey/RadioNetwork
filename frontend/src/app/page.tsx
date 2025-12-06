@@ -25,7 +25,7 @@ import {
 import { useStations } from '@/hooks/useStations';
 import { useSocket } from '@/hooks/useSocket';
 import Link from 'next/link';
-import { FaMusic, FaBroadcastTower, FaChartLine, FaHistory, FaSearch, FaListAlt } from 'react-icons/fa';
+import { FaMusic, FaBroadcastTower, FaChartLine, FaHistory, FaSearch, FaListAlt, FaLightbulb } from 'react-icons/fa';
 import { Song } from '@/types/song';
 import { Station } from '@/types/station';
 import api from '@/services/api';
@@ -131,7 +131,7 @@ export default function Home() {
           </Box>
 
           {/* Quick Links */}
-          <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
+          <SimpleGrid columns={{ base: 2, md: 5 }} spacing={4}>
             <Button
               as={Link}
               href="/playlists"
@@ -159,7 +159,22 @@ export default function Home() {
             >
               <VStack spacing={1}>
                 <Text>Analytics</Text>
-                <Text fontSize="xs" fontWeight="normal">Stats & Insights</Text>
+                <Text fontSize="xs" fontWeight="normal">Dashboard</Text>
+              </VStack>
+            </Button>
+            <Button
+              as={Link}
+              href="/insights"
+              size="lg"
+              variant="outline"
+              colorScheme="cyan"
+              leftIcon={<Icon as={FaLightbulb} />}
+              h="auto"
+              py={6}
+            >
+              <VStack spacing={1}>
+                <Text>Insights</Text>
+                <Text fontSize="xs" fontWeight="normal">Deep Analysis</Text>
               </VStack>
             </Button>
             <Button
