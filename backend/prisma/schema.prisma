@@ -20,6 +20,7 @@ model Station {
   scrapeInterval  Int      @default(60) @map("scrape_interval")
   lastScrapedAt   DateTime? @map("last_scraped_at")
   metadataType    String   @default("icy") @map("metadata_type") @db.VarChar(50)
+  metadataConfig  Json?    @map("metadata_config")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   

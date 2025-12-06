@@ -22,13 +22,17 @@ export async function scheduleStationScrapes(): Promise<void> {
 
     for (const station of stations) {
       const jobId = `station-${station.id}`;
-      
+
+      // Parse metadata config from JSON
+      const config = station.metadataConfig as any || {};
+
       await scrapeQueue.add(
         {
           stationId: station.id,
           streamUrl: station.streamUrl,
           metadataType: station.metadataType,
-          rovaSlug: station.slug // Use station slug as rova slug
+          rovaSlug: config.rovaSlug || station.slug, // Use config or fall back to station slug
+          iheartId: config.iheartId
         },
         {
           repeat: {

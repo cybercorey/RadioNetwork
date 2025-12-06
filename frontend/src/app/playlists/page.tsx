@@ -32,6 +32,7 @@ import Link from 'next/link';
 import { FaArrowLeft, FaFire, FaTrophy, FaMusic, FaClock, FaRandom, FaGuitar } from 'react-icons/fa';
 import { format } from 'date-fns';
 import api from '@/services/api';
+import { useRefresh } from '@/context/RefreshContext';
 
 interface PlaylistSong {
   id: number;
@@ -64,6 +65,7 @@ export default function PlaylistsPage() {
   const [selectedGenre, setSelectedGenre] = useState<string>('Rock');
   const [genrePlaylist, setGenrePlaylist] = useState<Playlist | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { setRefreshing, updateTimestamp } = useRefresh();
 
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -85,6 +87,7 @@ export default function PlaylistsPage() {
 
   const fetchPlaylists = async () => {
     setIsLoading(true);
+    setRefreshing(true);
     try {
       const [trendingRes, weeklyRes, discoverRes, throwbackRes] = await Promise.all([
         api.get('/playlists/trending?limit=50'),
@@ -97,10 +100,12 @@ export default function PlaylistsPage() {
       setWeeklyTop(weeklyRes.data);
       setDiscover(discoverRes.data);
       setThrowback(throwbackRes.data);
+      updateTimestamp();
     } catch (error) {
       console.error('Failed to fetch playlists:', error);
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
   };
 

@@ -31,15 +31,16 @@ import Link from 'next/link';
 import { FaArrowLeft, FaMusic } from 'react-icons/fa';
 import { format } from 'date-fns';
 import api from '@/services/api';
+import { useRefresh } from '@/context/RefreshContext';
 
 export default function StationPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const { station, isLoading } = useStation(slug);
   const { data: currentData, mutate } = useCurrentSong(slug);
   const socket = useSocket();
+  const { updateTimestamp } = useRefresh();
   const [history, setHistory] = useState<Play[]>([]);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -48,17 +49,19 @@ export default function StationPage({ params }: { params: Promise<{ slug: string
   useEffect(() => {
     if (currentData?.currentSong) {
       setCurrentSong(currentData.currentSong);
+      updateTimestamp();
     }
-  }, [currentData]);
+  }, [currentData, updateTimestamp]);
 
   useEffect(() => {
     if (station && slug) {
       // Fetch history
       api.get(`/stations/${slug}/history?limit=50`).then((res) => {
         setHistory(res.data.plays);
+        updateTimestamp();
       });
     }
-  }, [station, slug]);
+  }, [station, slug, updateTimestamp]);
 
   useEffect(() => {
     if (!socket || !station) return;
@@ -70,7 +73,7 @@ export default function StationPage({ params }: { params: Promise<{ slug: string
     socket.on('newSong', (data: any) => {
       if (data.station.id === station.id) {
         setCurrentSong(data.song);
-        setLastUpdated(new Date());
+        updateTimestamp();
         setHistory((prev) => [{
           id: data.play.id,
           stationId: data.station.id,
@@ -86,7 +89,7 @@ export default function StationPage({ params }: { params: Promise<{ slug: string
       socket.emit('leave', `station:${station.id}`);
       socket.off('newSong');
     };
-  }, [socket, station]);
+  }, [socket, station, updateTimestamp]);
 
   if (isLoading) {
     return (
@@ -146,16 +149,9 @@ export default function StationPage({ params }: { params: Promise<{ slug: string
           {/* Now Playing */}
           <Box bg={cardBg} p={6} borderRadius="lg" borderWidth={2} borderColor="brand.500">
             <VStack align="stretch" spacing={4}>
-              <HStack justify="space-between">
-                <HStack>
-                  <FaMusic />
-                  <Heading size="lg">Now Playing</Heading>
-                </HStack>
-                {lastUpdated && (
-                  <Text fontSize="xs" color="gray.400">
-                    Last updated: {format(lastUpdated, 'h:mm:ss a')}
-                  </Text>
-                )}
+              <HStack>
+                <FaMusic />
+                <Heading size="lg">Now Playing</Heading>
               </HStack>
               {currentSong ? (
                 <VStack align="start" spacing={2}>

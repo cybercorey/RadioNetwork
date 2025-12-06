@@ -20,6 +20,7 @@ import {
 } from '@chakra-ui/react';
 import { FaChartLine, FaArrowLeft, FaTrophy, FaClock, FaMusic } from 'react-icons/fa';
 import Link from 'next/link';
+import { useRefresh } from '@/context/RefreshContext';
 import {
   LineChart,
   Line,
@@ -57,6 +58,7 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<string>('7d');
+  const { setRefreshing, updateTimestamp } = useRefresh();
 
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -71,13 +73,16 @@ export default function AnalyticsPage() {
 
   const fetchAnalytics = async () => {
     setIsLoading(true);
+    setRefreshing(true);
     try {
       const response = await api.get(`/analytics/dashboard?timeRange=${timeRange}`);
       setData(response.data);
+      updateTimestamp();
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
   };
 

@@ -1,6 +1,7 @@
 import { scrapeQueue } from '../../config/bull';
 import { parseIcyStream } from '../../scrapers/icyMetadataParser';
 import { scrapeRovaStation } from '../../scrapers/rovaWebScraper';
+import { scrapeIHeartStation } from '../../scrapers/iHeartScraper';
 import { stationService } from '../../services/stationService';
 import { songService } from '../../services/songService';
 import { playService } from '../../services/playService';
@@ -12,20 +13,23 @@ export interface ScrapeJobData {
   streamUrl: string;
   metadataType?: string;
   rovaSlug?: string;
+  iheartId?: string;
 }
 
 // Process scrape jobs
 scrapeQueue.process(async (job) => {
-  const { stationId, streamUrl, metadataType, rovaSlug } = job.data as ScrapeJobData;
+  const { stationId, streamUrl, metadataType, rovaSlug, iheartId } = job.data as ScrapeJobData;
 
   try {
     logger.debug(`Scraping station ${stationId}...`);
 
     // Parse metadata based on type
     let metadata: { artist: string; title: string; raw: string };
-    
+
     if (metadataType === 'rova' && rovaSlug) {
       metadata = await scrapeRovaStation(rovaSlug);
+    } else if (metadataType === 'iheart' && iheartId) {
+      metadata = await scrapeIHeartStation(iheartId);
     } else {
       // Default to ICY metadata parsing
       metadata = await parseIcyStream(streamUrl);

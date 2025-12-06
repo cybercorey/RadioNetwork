@@ -45,6 +45,7 @@ import { FaArrowLeft, FaHistory, FaSearch, FaSpotify, FaFileExport, FaDatabase }
 import { format } from 'date-fns';
 import api from '@/services/api';
 import { useStations } from '@/hooks/useStations';
+import { useRefresh } from '@/context/RefreshContext';
 
 interface Play {
   id: string;
@@ -88,6 +89,7 @@ export default function PlaysPage() {
   const limit = 50;
 
   const { stations } = useStations();
+  const { setRefreshing, updateTimestamp } = useRefresh();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [spotifyUrls, setSpotifyUrls] = useState('');
   const toast = useToast();
@@ -121,6 +123,7 @@ export default function PlaysPage() {
 
   const fetchPlays = async () => {
     setIsLoading(true);
+    setRefreshing(true);
     try {
       const params = new URLSearchParams({
         limit: limit.toString(),
@@ -150,10 +153,12 @@ export default function PlaysPage() {
         setPlays(response.data.plays);
         setTotalCount(response.data.pagination.total);
       }
+      updateTimestamp();
     } catch (error) {
       console.error('Failed to fetch plays:', error);
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
   };
 

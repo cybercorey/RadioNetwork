@@ -32,6 +32,7 @@ import Link from 'next/link';
 import { FaArrowLeft, FaFire, FaExchangeAlt, FaChartLine, FaUser } from 'react-icons/fa';
 import { format } from 'date-fns';
 import api from '@/services/api';
+import { useRefresh } from '@/context/RefreshContext';
 import {
   LineChart,
   Line,
@@ -77,6 +78,7 @@ export default function InsightsPage() {
   const [crossStation, setCrossStation] = useState<any>(null);
   const [genreEvolution, setGenreEvolution] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { setRefreshing, updateTimestamp } = useRefresh();
 
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -90,6 +92,7 @@ export default function InsightsPage() {
 
   const fetchInsights = async () => {
     setIsLoading(true);
+    setRefreshing(true);
     try {
       const [momentumRes, crossStationRes, genreEvolutionRes] = await Promise.all([
         api.get('/analytics/song-momentum?limit=50&days=7'),
@@ -100,10 +103,12 @@ export default function InsightsPage() {
       setMomentum(momentumRes.data);
       setCrossStation(crossStationRes.data);
       setGenreEvolution(genreEvolutionRes.data);
+      updateTimestamp();
     } catch (error) {
       console.error('Failed to fetch insights:', error);
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
   };
 

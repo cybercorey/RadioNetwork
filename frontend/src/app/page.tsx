@@ -24,6 +24,7 @@ import {
 } from '@chakra-ui/react';
 import { useStations } from '@/hooks/useStations';
 import { useSocket } from '@/hooks/useSocket';
+import { useRefresh } from '@/context/RefreshContext';
 import Link from 'next/link';
 import { FaMusic, FaBroadcastTower, FaChartLine, FaHistory, FaSearch, FaListAlt, FaLightbulb, FaExchangeAlt } from 'react-icons/fa';
 import { Song } from '@/types/song';
@@ -39,8 +40,8 @@ interface StationWithSong extends Station {
 export default function Home() {
   const { stations, isLoading } = useStations();
   const socket = useSocket();
+  const { setRefreshing, updateTimestamp } = useRefresh();
   const [stationsWithSongs, setStationsWithSongs] = useState<StationWithSong[]>([]);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -51,6 +52,7 @@ export default function Home() {
     if (!stations.length) return;
 
     const fetchCurrentSongs = async () => {
+      setRefreshing(true);
       const stationsWithCurrentSongs = await Promise.all(
         stations.map(async (station: Station) => {
           try {
@@ -70,6 +72,8 @@ export default function Home() {
         })
       );
       setStationsWithSongs(stationsWithCurrentSongs);
+      setRefreshing(false);
+      updateTimestamp();
     };
 
     fetchCurrentSongs();
@@ -77,7 +81,7 @@ export default function Home() {
     // Refresh every 30 seconds
     const interval = setInterval(fetchCurrentSongs, 30000);
     return () => clearInterval(interval);
-  }, [stations]);
+  }, [stations, setRefreshing, updateTimestamp]);
 
   // Listen for real-time updates via socket
   useEffect(() => {
@@ -91,13 +95,13 @@ export default function Home() {
             : station
         )
       );
-      setLastUpdated(new Date());
+      updateTimestamp();
     });
 
     return () => {
       socket.off('globalNewSong');
     };
-  }, [socket]);
+  }, [socket, updateTimestamp]);
 
   if (isLoading) {
     return (
@@ -123,11 +127,6 @@ export default function Home() {
             <Text fontSize="xl" color="gray.500">
               Live Radio Station Tracking
             </Text>
-            {lastUpdated && (
-              <Text fontSize="sm" color="gray.400" mt={2}>
-                Last updated: {format(lastUpdated, 'h:mm:ss a')}
-              </Text>
-            )}
           </Box>
 
           {/* Quick Links */}
