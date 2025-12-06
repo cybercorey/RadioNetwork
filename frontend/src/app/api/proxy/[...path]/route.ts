@@ -33,10 +33,11 @@ function getCacheConfig(path: string) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
-    const path = params.path.join('/');
+    const { path: pathSegments } = await params;
+    const path = pathSegments.join('/');
     const searchParams = request.nextUrl.searchParams.toString();
     const url = `${BACKEND_URL}/api/${path}${searchParams ? `?${searchParams}` : ''}`;
 
