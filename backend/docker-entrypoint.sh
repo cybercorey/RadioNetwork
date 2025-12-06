@@ -37,6 +37,12 @@ npx prisma db push --skip-generate --accept-data-loss 2>&1 | tee /tmp/prisma-pus
   fi
 }
 
+# Seed the database with initial stations (uses upsert, so safe to run every time)
+echo "🌱 Seeding database with stations..."
+npm run prisma:seed || {
+  echo "⚠️  Seeding failed, but continuing startup..."
+}
+
 echo "✅ Database initialization complete!"
 
 # Start the application
