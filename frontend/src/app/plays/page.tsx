@@ -96,14 +96,18 @@ export default function PlaysPage() {
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
 
-  // Fetch database stats once on mount
+  // Fetch database stats once on mount and poll every 2 minutes
   useEffect(() => {
     fetchDatabaseStats();
+    const interval = setInterval(fetchDatabaseStats, 120000); // Poll every 2 minutes
+    return () => clearInterval(interval);
   }, []);
 
-  // Fetch plays when filters or page change
+  // Fetch plays when filters or page change, and poll every minute
   useEffect(() => {
     fetchPlays();
+    const interval = setInterval(fetchPlays, 60000); // Poll every minute
+    return () => clearInterval(interval);
   }, [page, stationFilter, dateFilter, sortBy]);
 
   const fetchDatabaseStats = async () => {
