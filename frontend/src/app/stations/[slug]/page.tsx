@@ -78,6 +78,7 @@ export default function StationPage({ params }: { params: Promise<{ slug: string
           stationId: data.station.id,
           songId: data.song.id,
           playedAt: data.playedAt,
+          createdAt: data.playedAt,  // Required by Play type
           song: data.song,
         }, ...prev.slice(0, 49)]);
       }
