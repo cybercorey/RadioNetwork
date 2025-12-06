@@ -18,11 +18,14 @@ import {
   Th,
   Td,
   Link as ChakraLink,
+  SimpleGrid,
+  Button,
+  Icon,
 } from '@chakra-ui/react';
 import { useStations } from '@/hooks/useStations';
 import { useSocket } from '@/hooks/useSocket';
 import Link from 'next/link';
-import { FaMusic, FaBroadcastTower } from 'react-icons/fa';
+import { FaMusic, FaBroadcastTower, FaChartLine, FaHistory, FaSearch, FaListAlt } from 'react-icons/fa';
 import { Song } from '@/types/song';
 import { Station } from '@/types/station';
 import api from '@/services/api';
@@ -126,6 +129,70 @@ export default function Home() {
               </Text>
             )}
           </Box>
+
+          {/* Quick Links */}
+          <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
+            <Button
+              as={Link}
+              href="/playlists"
+              size="lg"
+              variant="outline"
+              colorScheme="brand"
+              leftIcon={<Icon as={FaListAlt} />}
+              h="auto"
+              py={6}
+            >
+              <VStack spacing={1}>
+                <Text>Smart Playlists</Text>
+                <Text fontSize="xs" fontWeight="normal">Discover & Trending</Text>
+              </VStack>
+            </Button>
+            <Button
+              as={Link}
+              href="/analytics"
+              size="lg"
+              variant="outline"
+              colorScheme="purple"
+              leftIcon={<Icon as={FaChartLine} />}
+              h="auto"
+              py={6}
+            >
+              <VStack spacing={1}>
+                <Text>Analytics</Text>
+                <Text fontSize="xs" fontWeight="normal">Stats & Insights</Text>
+              </VStack>
+            </Button>
+            <Button
+              as={Link}
+              href="/plays"
+              size="lg"
+              variant="outline"
+              colorScheme="green"
+              leftIcon={<Icon as={FaHistory} />}
+              h="auto"
+              py={6}
+            >
+              <VStack spacing={1}>
+                <Text>All Plays</Text>
+                <Text fontSize="xs" fontWeight="normal">Browse History</Text>
+              </VStack>
+            </Button>
+            <Button
+              as={Link}
+              href="/search"
+              size="lg"
+              variant="outline"
+              colorScheme="orange"
+              leftIcon={<Icon as={FaSearch} />}
+              h="auto"
+              py={6}
+            >
+              <VStack spacing={1}>
+                <Text>Search</Text>
+                <Text fontSize="xs" fontWeight="normal">Find Songs</Text>
+              </VStack>
+            </Button>
+          </SimpleGrid>
 
           {/* Now Playing List */}
           <Box bg={cardBg} borderRadius="lg" borderWidth="1px" borderColor={borderColor} overflow="hidden">

@@ -12,6 +12,7 @@ import songsRouter from './api/routes/songs';
 import playsRouter from './api/routes/plays';
 import analyticsRouter from './api/routes/analytics';
 import searchRouter from './api/routes/search';
+import playlistsRouter from './api/routes/playlists';
 import { setupSocketHandlers } from './socket/socketHandler';
 import { corsOptions, getCorsOrigins } from './config/cors';
 
@@ -62,6 +63,7 @@ app.use('/api/songs', songsRouter);
 app.use('/api/plays', playsRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/search', searchRouter);
+app.use('/api/playlists', playlistsRouter);
 
 // Socket.io handlers
 setupSocketHandlers(io);
