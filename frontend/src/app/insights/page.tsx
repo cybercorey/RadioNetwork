@@ -170,7 +170,7 @@ export default function InsightsPage() {
                           Song Momentum Tracker
                         </Heading>
                         <Text color="gray.500" fontSize="sm">
-                          Songs with increasing play counts ({momentum?.timeframe})
+                          Songs with increasing play counts (Last 7 days)
                         </Text>
                       </Box>
                       <Box overflowX="auto">
