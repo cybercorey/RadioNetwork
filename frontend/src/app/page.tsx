@@ -37,6 +37,7 @@ export default function Home() {
   const { stations, isLoading } = useStations();
   const socket = useSocket();
   const [stationsWithSongs, setStationsWithSongs] = useState<StationWithSong[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -87,6 +88,7 @@ export default function Home() {
             : station
         )
       );
+      setLastUpdated(new Date());
     });
 
     return () => {
@@ -118,6 +120,11 @@ export default function Home() {
             <Text fontSize="xl" color="gray.500">
               Live Radio Station Tracking
             </Text>
+            {lastUpdated && (
+              <Text fontSize="sm" color="gray.400" mt={2}>
+                Last updated: {format(lastUpdated, 'h:mm:ss a')}
+              </Text>
+            )}
           </Box>
 
           {/* Now Playing List */}

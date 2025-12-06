@@ -39,6 +39,7 @@ export default function StationPage({ params }: { params: Promise<{ slug: string
   const socket = useSocket();
   const [history, setHistory] = useState<Play[]>([]);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -73,6 +74,7 @@ export default function StationPage({ params }: { params: Promise<{ slug: string
     socket.on('newSong', (data: any) => {
       if (data.station.id === station.id) {
         setCurrentSong(data.song);
+        setLastUpdated(new Date());
         setHistory((prev) => [{
           id: data.play.id,
           stationId: data.station.id,
@@ -148,9 +150,16 @@ export default function StationPage({ params }: { params: Promise<{ slug: string
           {/* Now Playing */}
           <Box bg={cardBg} p={6} borderRadius="lg" borderWidth={2} borderColor="brand.500">
             <VStack align="stretch" spacing={4}>
-              <HStack>
-                <FaMusic />
-                <Heading size="lg">Now Playing</Heading>
+              <HStack justify="space-between">
+                <HStack>
+                  <FaMusic />
+                  <Heading size="lg">Now Playing</Heading>
+                </HStack>
+                {lastUpdated && (
+                  <Text fontSize="xs" color="gray.400">
+                    Last updated: {format(lastUpdated, 'h:mm:ss a')}
+                  </Text>
+                )}
               </HStack>
               {currentSong ? (
                 <VStack align="start" spacing={2}>
