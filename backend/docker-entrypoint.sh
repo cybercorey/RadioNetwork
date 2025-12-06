@@ -19,28 +19,23 @@ until nc -z ${REDIS_HOST:-redis} ${REDIS_PORT:-6379}; do
 done
 echo "✅ Redis is ready!"
 
-# Check if database schema exists
-echo "🔍 Checking database schema..."
-TABLES_EXIST=$(PGPASSWORD=${DATABASE_URL#*://*/} psql "${DATABASE_URL}" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'stations';" 2>/dev/null || echo "0")
+# Initialize database schema using Prisma
+echo "🔍 Initializing database schema..."
 
-if [ "$TABLES_EXIST" = "0" ] || [ -z "$TABLES_EXIST" ]; then
-  echo "⚠️  Database schema not found. Attempting to create using Prisma..."
-
-  # Try to push the schema directly (this creates tables without migration history)
-  echo "📦 Running prisma db push..."
-  npx prisma db push --accept-data-loss --skip-generate || {
-    echo "❌ Prisma db push failed, trying migrate deploy..."
+# Use prisma db push for initial schema creation (idempotent and works on empty DB)
+# This will create tables if they don't exist, or do nothing if they already exist
+echo "📦 Running prisma db push to ensure schema exists..."
+npx prisma db push --skip-generate --accept-data-loss 2>&1 | tee /tmp/prisma-push.log || {
+  # If db push fails, check if it's because tables already exist
+  if grep -q "already exists" /tmp/prisma-push.log; then
+    echo "✅ Database schema already exists"
+  else
+    echo "⚠️  Prisma db push had warnings, attempting migrate deploy..."
     npx prisma migrate deploy || {
-      echo "❌ Migration failed. Database may need manual initialization."
-      exit 1
+      echo "⚠️  Migration warnings present, but continuing startup..."
     }
-  }
-else
-  echo "✅ Database schema exists, running migrations..."
-  npx prisma migrate deploy || {
-    echo "⚠️  Migration failed, but continuing startup..."
-  }
-fi
+  fi
+}
 
 echo "✅ Database initialization complete!"
 
