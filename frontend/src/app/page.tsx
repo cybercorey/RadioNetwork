@@ -26,7 +26,7 @@ import { useStations } from '@/hooks/useStations';
 import { useSocket } from '@/hooks/useSocket';
 import { useRefresh } from '@/context/RefreshContext';
 import Link from 'next/link';
-import { FaMusic, FaBroadcastTower, FaChartLine, FaHistory, FaSearch, FaListAlt, FaLightbulb, FaExchangeAlt } from 'react-icons/fa';
+import { FaMusic, FaBroadcastTower, FaChartLine, FaHistory, FaSearch, FaListAlt, FaLightbulb, FaExchangeAlt, FaCalendarDay, FaFire } from 'react-icons/fa';
 import { Song } from '@/types/song';
 import { Station } from '@/types/station';
 import api from '@/services/api';
@@ -137,7 +137,7 @@ export default function Home() {
           </Box>
 
           {/* Quick Links - Show fewer options in legacy mode */}
-          <SimpleGrid columns={{ base: 2, md: isLegacyMode ? 3 : 6 }} spacing={4}>
+          <SimpleGrid columns={{ base: 2, md: isLegacyMode ? 3 : 4, lg: isLegacyMode ? 3 : 7 }} spacing={4}>
             {!isLegacyMode && (
               <Button
                 as={Link}
@@ -219,6 +219,23 @@ export default function Home() {
                 <Text fontSize="xs" fontWeight="normal">Find Songs</Text>
               </VStack>
             </Button>
+            {isLegacyMode && (
+              <Button
+                as={Link}
+                href="/history"
+                size="lg"
+                variant="outline"
+                colorScheme="yellow"
+                leftIcon={<Icon as={FaCalendarDay} />}
+                h="auto"
+                py={6}
+              >
+                <VStack spacing={1}>
+                  <Text>This Day in History</Text>
+                  <Text fontSize="xs" fontWeight="normal">Time Machine</Text>
+                </VStack>
+              </Button>
+            )}
             {!isLegacyMode && (
               <Button
                 as={Link}
@@ -233,6 +250,23 @@ export default function Home() {
                 <VStack spacing={1}>
                   <Text>Compare</Text>
                   <Text fontSize="xs" fontWeight="normal">Station Analysis</Text>
+                </VStack>
+              </Button>
+            )}
+            {!isLegacyMode && (
+              <Button
+                as={Link}
+                href="/heatmap"
+                size="lg"
+                variant="outline"
+                colorScheme="pink"
+                leftIcon={<Icon as={FaFire} />}
+                h="auto"
+                py={6}
+              >
+                <VStack spacing={1}>
+                  <Text>Heatmap</Text>
+                  <Text fontSize="xs" fontWeight="normal">Peak Hours</Text>
                 </VStack>
               </Button>
             )}

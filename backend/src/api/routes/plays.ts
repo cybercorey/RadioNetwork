@@ -402,4 +402,255 @@ router.get('/song/:id', async (req, res, next) => {
   }
 });
 
+// GET /api/plays/this-day-in-history - Get plays from the same day/time in past years
+// Shows what was playing on each station at this time X years ago
+// Query params:
+//   - hour: specific hour to look at (0-23, default: current hour)
+//   - minute: specific minute (0-59, default: current minute)
+//   - source: 'v1' | 'v2' | 'all' - filter by data source (default: v1 for legacy)
+router.get('/this-day-in-history', async (req, res, next) => {
+  try {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    const currentDay = now.getDate();
+    const hour = parseInt(req.query.hour as string) || now.getHours();
+    const minute = parseInt(req.query.minute as string) || now.getMinutes();
+    const sourceFilter = req.query.source as string || 'v1';
+
+    // Get available years from legacy data
+    const availableYears = await prisma.$queryRaw<{ year: number }[]>`
+      SELECT DISTINCT EXTRACT(YEAR FROM played_at)::int as year
+      FROM plays
+      WHERE source = ${sourceFilter}
+      ORDER BY year DESC
+    `;
+
+    const years = availableYears.map(y => y.year);
+
+    // For each year, find plays around the same time on the same day
+    const historyByYear = await Promise.all(
+      years.map(async (year) => {
+        // Create time window: same day, +/- 30 minutes from specified time
+        const targetTime = new Date(Date.UTC(year, currentMonth - 1, currentDay, hour, minute, 0));
+        const windowStart = new Date(targetTime.getTime() - 30 * 60 * 1000);
+        const windowEnd = new Date(targetTime.getTime() + 30 * 60 * 1000);
+
+        // Get plays in this window, grouped by station
+        const plays = await prisma.play.findMany({
+          where: {
+            source: sourceFilter,
+            playedAt: {
+              gte: windowStart,
+              lte: windowEnd,
+            },
+          },
+          include: {
+            song: true,
+            station: true,
+          },
+          orderBy: { playedAt: 'asc' },
+        });
+
+        // Group by station and get the closest play to target time
+        const stationPlays = new Map<number, typeof plays[0]>();
+        for (const play of plays) {
+          const existing = stationPlays.get(play.stationId);
+          if (!existing) {
+            stationPlays.set(play.stationId, play);
+          } else {
+            // Keep the one closest to target time
+            const existingDiff = Math.abs(new Date(existing.playedAt).getTime() - targetTime.getTime());
+            const currentDiff = Math.abs(new Date(play.playedAt).getTime() - targetTime.getTime());
+            if (currentDiff < existingDiff) {
+              stationPlays.set(play.stationId, play);
+            }
+          }
+        }
+
+        return {
+          year,
+          targetTime: targetTime.toISOString(),
+          stations: Array.from(stationPlays.values()).map(play => ({
+            station: {
+              id: play.station.id,
+              name: play.station.name,
+              slug: play.station.slug,
+            },
+            song: {
+              id: play.song.id,
+              title: play.song.title,
+              artist: play.song.artist,
+            },
+            playedAt: play.playedAt,
+            legacyStation: (play.rawMetadata as any)?.legacyStation || play.station.name,
+          })),
+        };
+      })
+    );
+
+    // Filter out years with no data
+    const validHistory = historyByYear.filter(h => h.stations.length > 0);
+
+    res.json({
+      currentDate: {
+        month: currentMonth,
+        day: currentDay,
+        hour,
+        minute,
+        displayDate: `${now.toLocaleDateString('en-NZ', { month: 'long', day: 'numeric' })}`,
+        displayTime: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
+      },
+      years: validHistory,
+      source: sourceFilter,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/plays/heatmap - Get hourly play counts for heatmap visualization
+// Returns play counts by hour and day of week for each station
+// Query params:
+//   - station: station slug (optional, returns all if not specified)
+//   - days: number of days to analyze (default: 30)
+//   - source: 'v1' | 'v2' | 'all' - filter by data source
+//   - metric: 'total' | 'unique' - count total plays or unique songs (default: total)
+router.get('/heatmap', async (req, res, next) => {
+  try {
+    const stationSlug = req.query.station as string;
+    const days = parseInt(req.query.days as string) || 30;
+    const sourceFilter = req.query.source as string || 'all';
+    const metric = req.query.metric as string || 'total';
+
+    const dateThreshold = new Date();
+    dateThreshold.setDate(dateThreshold.getDate() - days);
+
+    // Build source filter SQL
+    const sourceCondition = sourceFilter === 'v1'
+      ? `AND p.source = 'v1'`
+      : sourceFilter === 'v2'
+        ? `AND p.source = 'v2'`
+        : '';
+
+    // Get station filter if specified
+    let stationCondition = '';
+    let stationInfo = null;
+    if (stationSlug && stationSlug !== 'all') {
+      const station = await prisma.station.findUnique({ where: { slug: stationSlug } });
+      if (station) {
+        stationCondition = `AND p.station_id = ${station.id}`;
+        stationInfo = { id: station.id, name: station.name, slug: station.slug };
+      }
+    }
+
+    // Query for heatmap data: hour (0-23) x day of week (0-6, 0=Sunday)
+    const heatmapData = metric === 'unique'
+      ? await prisma.$queryRawUnsafe<{ day_of_week: number; hour: number; count: number }[]>(`
+          SELECT
+            EXTRACT(DOW FROM p.played_at)::int as day_of_week,
+            EXTRACT(HOUR FROM p.played_at)::int as hour,
+            COUNT(DISTINCT p.song_id)::int as count
+          FROM plays p
+          WHERE p.played_at >= $1
+            ${sourceCondition}
+            ${stationCondition}
+          GROUP BY EXTRACT(DOW FROM p.played_at), EXTRACT(HOUR FROM p.played_at)
+          ORDER BY day_of_week, hour
+        `, dateThreshold)
+      : await prisma.$queryRawUnsafe<{ day_of_week: number; hour: number; count: number }[]>(`
+          SELECT
+            EXTRACT(DOW FROM p.played_at)::int as day_of_week,
+            EXTRACT(HOUR FROM p.played_at)::int as hour,
+            COUNT(*)::int as count
+          FROM plays p
+          WHERE p.played_at >= $1
+            ${sourceCondition}
+            ${stationCondition}
+          GROUP BY EXTRACT(DOW FROM p.played_at), EXTRACT(HOUR FROM p.played_at)
+          ORDER BY day_of_week, hour
+        `, dateThreshold);
+
+    // Build a 7x24 matrix (days x hours)
+    const matrix: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
+    let maxCount = 0;
+
+    for (const row of heatmapData) {
+      matrix[row.day_of_week][row.hour] = row.count;
+      if (row.count > maxCount) maxCount = row.count;
+    }
+
+    // Calculate peak hours (top 5 hours)
+    const hourlyTotals: { hour: number; total: number }[] = [];
+    for (let hour = 0; hour < 24; hour++) {
+      const total = matrix.reduce((sum, day) => sum + day[hour], 0);
+      hourlyTotals.push({ hour, total });
+    }
+    hourlyTotals.sort((a, b) => b.total - a.total);
+    const peakHours = hourlyTotals.slice(0, 5);
+
+    // Get per-station heatmaps if no specific station selected
+    let stationHeatmaps: any[] = [];
+    if (!stationSlug || stationSlug === 'all') {
+      const stations = await prisma.station.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, slug: true },
+      });
+
+      stationHeatmaps = await Promise.all(
+        stations.map(async (station) => {
+          const stationData = await prisma.$queryRawUnsafe<{ hour: number; count: number }[]>(`
+            SELECT
+              EXTRACT(HOUR FROM p.played_at)::int as hour,
+              COUNT(*)::int as count
+            FROM plays p
+            WHERE p.played_at >= $1
+              AND p.station_id = $2
+              ${sourceCondition}
+            GROUP BY EXTRACT(HOUR FROM p.played_at)
+            ORDER BY hour
+          `, dateThreshold, station.id);
+
+          const hourlyData = Array(24).fill(0);
+          let stationMax = 0;
+          for (const row of stationData) {
+            hourlyData[row.hour] = row.count;
+            if (row.count > stationMax) stationMax = row.count;
+          }
+
+          // Find peak hour for this station
+          const peakHour = hourlyData.indexOf(Math.max(...hourlyData));
+
+          return {
+            station: { id: station.id, name: station.name, slug: station.slug },
+            hourlyData,
+            peakHour,
+            maxCount: stationMax,
+          };
+        })
+      );
+
+      // Sort by total plays
+      stationHeatmaps.sort((a, b) => {
+        const aTotal = a.hourlyData.reduce((s: number, v: number) => s + v, 0);
+        const bTotal = b.hourlyData.reduce((s: number, v: number) => s + v, 0);
+        return bTotal - aTotal;
+      });
+    }
+
+    res.json({
+      timeframe: `${days} days`,
+      source: sourceFilter,
+      metric,
+      station: stationInfo,
+      matrix, // 7x24 matrix [day][hour]
+      maxCount,
+      peakHours,
+      dayLabels: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+      stationHeatmaps: stationHeatmaps.slice(0, 20), // Top 20 stations
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

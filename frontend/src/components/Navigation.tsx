@@ -14,7 +14,7 @@ import {
 } from '@chakra-ui/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { FaHome, FaHistory, FaChartLine, FaSearch, FaFire, FaExchangeAlt } from 'react-icons/fa';
+import { FaHome, FaHistory, FaChartLine, FaSearch, FaLightbulb, FaExchangeAlt, FaCalendarDay, FaFire } from 'react-icons/fa';
 import { useLegacyMode } from '@/context/LegacyModeContext';
 
 // Pages that are not supported in legacy mode (only /plays and /songs/* are supported)
@@ -73,6 +73,17 @@ export default function Navigation() {
             >
               {isLegacyMode ? 'Legacy Plays' : 'All Plays'}
             </Button>
+            {isLegacyMode && (
+              <Button
+                as={Link}
+                href="/history"
+                leftIcon={<FaCalendarDay />}
+                variant="ghost"
+                size="sm"
+              >
+                This Day
+              </Button>
+            )}
             {!isLegacyMode && (
               <>
                 <Button
@@ -96,7 +107,7 @@ export default function Navigation() {
                 <Button
                   as={Link}
                   href="/insights"
-                  leftIcon={<FaFire />}
+                  leftIcon={<FaLightbulb />}
                   variant="ghost"
                   size="sm"
                 >
@@ -110,6 +121,15 @@ export default function Navigation() {
                   size="sm"
                 >
                   Compare
+                </Button>
+                <Button
+                  as={Link}
+                  href="/heatmap"
+                  leftIcon={<FaFire />}
+                  variant="ghost"
+                  size="sm"
+                >
+                  Heatmap
                 </Button>
               </>
             )}
