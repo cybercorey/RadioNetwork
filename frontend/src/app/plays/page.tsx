@@ -638,7 +638,7 @@ export default function PlaysPage() {
                       )}
                       <Td>
                         <Text fontSize="sm" color="gray.500" whiteSpace="nowrap">
-                          {format(new Date(play.playedAt), isLegacyMode ? 'MMM d, yyyy' : 'MMM d, h:mm a')}
+                          {format(new Date(play.playedAt), isLegacyMode ? 'MMM d, yyyy h:mm a' : 'MMM d, h:mm a')}
                         </Text>
                       </Td>
                       <Td>
