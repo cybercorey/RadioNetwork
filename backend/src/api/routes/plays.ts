@@ -38,6 +38,7 @@ function parseDateFilter(dateFilter: string): { gte?: Date; lte?: Date } | null 
 // Helper function to build date range conditions for legacy multi-select filters
 // years: comma-separated list of years (e.g., "2013,2014")
 // months: comma-separated list of months (e.g., "1,2,3" for Jan, Feb, Mar)
+// Note: Uses NZ timezone (UTC+12/+13) for filtering since legacy data is from NZ stations
 function buildLegacyDateFilter(years: string, months: string): { OR: Array<{ playedAt: { gte: Date; lte: Date } }> } | null {
   if (!years || years === 'all') return null;
 
@@ -50,24 +51,42 @@ function buildLegacyDateFilter(years: string, months: string): { OR: Array<{ pla
 
   const conditions: Array<{ playedAt: { gte: Date; lte: Date } }> = [];
 
+  // NZ is UTC+12 (NZST) or UTC+13 (NZDT during daylight saving)
+  // To convert "start of day/month/year in NZ" to UTC, subtract the timezone offset
+  // Jan 1, 2014 00:00 NZDT (+13) = Dec 31, 2013 11:00 UTC
+  // Dec 31, 2014 23:59 NZDT (+13) = Dec 31, 2014 10:59 UTC
+  // Use 13 hours to ensure we capture all data (conservative)
+  const NZ_OFFSET_MS = 13 * 60 * 60 * 1000; // 13 hours in milliseconds
+
   for (const year of yearList) {
     if (monthList.length === 0) {
-      // Full year
+      // Full year - adjust for NZ timezone
+      // Start: Jan 1 00:00 NZ time -> subtract 13 hours to get UTC
+      const startNZ = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+      const startUTC = new Date(startNZ.getTime() - NZ_OFFSET_MS);
+      // End: Dec 31 23:59:59 NZ time -> subtract 13 hours to get UTC
+      const endNZ = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
+      const endUTC = new Date(endNZ.getTime() - NZ_OFFSET_MS);
       conditions.push({
         playedAt: {
-          gte: new Date(`${year}-01-01T00:00:00Z`),
-          lte: new Date(`${year}-12-31T23:59:59Z`),
+          gte: startUTC,
+          lte: endUTC,
         },
       });
     } else {
-      // Specific months
+      // Specific months - adjust for NZ timezone
       for (const month of monthList) {
-        const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-        const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59)); // Day 0 of next month = last day of current month
+        // Start: 1st day 00:00 NZ time
+        const startNZ = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+        const startUTC = new Date(startNZ.getTime() - NZ_OFFSET_MS);
+        // End: last day 23:59:59 NZ time (day 0 of next month = last day of current month)
+        const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+        const endNZ = new Date(Date.UTC(year, month - 1, lastDay, 23, 59, 59));
+        const endUTC = new Date(endNZ.getTime() - NZ_OFFSET_MS);
         conditions.push({
           playedAt: {
-            gte: startOfMonth,
-            lte: endOfMonth,
+            gte: startUTC,
+            lte: endUTC,
           },
         });
       }
@@ -76,6 +95,106 @@ function buildLegacyDateFilter(years: string, months: string): { OR: Array<{ pla
 
   return conditions.length > 0 ? { OR: conditions } : null;
 }
+
+// GET /api/plays/legacy-availability - Get available years and months with data for legacy mode
+// Returns which years have data and which months have data per year
+// Note: Uses NZ timezone for grouping since legacy data is from NZ stations
+// The played_at column is timestamp without timezone, stored in UTC
+// To convert to NZ time, we need to add 13 hours (NZDT) using interval
+router.get('/legacy-availability', async (req, res, next) => {
+  try {
+    // Get counts per year for legacy (v1) data
+    // Add 13 hours to UTC to get NZ time (conservative for NZDT)
+    const yearCounts = await prisma.$queryRaw<{ year: number; count: number }[]>`
+      SELECT
+        EXTRACT(YEAR FROM played_at + INTERVAL '13 hours')::int as year,
+        COUNT(*)::int as count
+      FROM plays
+      WHERE source = 'v1'
+      GROUP BY EXTRACT(YEAR FROM played_at + INTERVAL '13 hours')
+      ORDER BY year DESC
+    `;
+
+    // Get counts per year-month combination for legacy data
+    const monthCounts = await prisma.$queryRaw<{ year: number; month: number; count: number }[]>`
+      SELECT
+        EXTRACT(YEAR FROM played_at + INTERVAL '13 hours')::int as year,
+        EXTRACT(MONTH FROM played_at + INTERVAL '13 hours')::int as month,
+        COUNT(*)::int as count
+      FROM plays
+      WHERE source = 'v1'
+      GROUP BY EXTRACT(YEAR FROM played_at + INTERVAL '13 hours'), EXTRACT(MONTH FROM played_at + INTERVAL '13 hours')
+      ORDER BY year DESC, month ASC
+    `;
+
+    // Build a map of year -> { count, months: { month -> count } }
+    const availabilityMap: Record<number, { count: number; months: Record<number, number> }> = {};
+
+    // Initialize years
+    for (const { year, count } of yearCounts) {
+      availabilityMap[year] = { count, months: {} };
+    }
+
+    // Populate months
+    for (const { year, month, count } of monthCounts) {
+      if (availabilityMap[year]) {
+        availabilityMap[year].months[month] = count;
+      }
+    }
+
+    // Convert to arrays for easier frontend consumption
+    const years = Object.entries(availabilityMap).map(([year, data]) => ({
+      year: parseInt(year),
+      count: data.count,
+    })).sort((a, b) => b.year - a.year);
+
+    // Create a map of year -> available months with counts
+    const monthsByYear: Record<number, Array<{ month: number; count: number }>> = {};
+    for (const [year, data] of Object.entries(availabilityMap)) {
+      monthsByYear[parseInt(year)] = Object.entries(data.months).map(([month, count]) => ({
+        month: parseInt(month),
+        count,
+      })).sort((a, b) => a.month - b.month);
+    }
+
+    // Get stations that have legacy data
+    const stationCounts = await prisma.$queryRaw<{ station_id: number; count: number }[]>`
+      SELECT
+        station_id,
+        COUNT(*)::int as count
+      FROM plays
+      WHERE source = 'v1'
+      GROUP BY station_id
+      ORDER BY count DESC
+    `;
+
+    // Get station details for stations with legacy data
+    const stationIds = stationCounts.map(s => s.station_id);
+    const stationsWithData = await prisma.station.findMany({
+      where: { id: { in: stationIds } },
+      select: { id: true, name: true, slug: true },
+    });
+
+    // Create a map for easy lookup
+    const stationMap = new Map(stationsWithData.map(s => [s.id, s]));
+
+    // Build stations array with counts
+    const stations = stationCounts
+      .filter(s => stationMap.has(s.station_id))
+      .map(s => ({
+        ...stationMap.get(s.station_id)!,
+        count: s.count,
+      }));
+
+    res.json({
+      years,
+      monthsByYear,
+      stations,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // GET /api/plays/stats - Get overall database statistics
 // Query params:

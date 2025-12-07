@@ -86,6 +86,19 @@ interface DatabaseStats {
   uniqueArtists: number;
 }
 
+interface LegacyStation {
+  id: number;
+  name: string;
+  slug: string;
+  count: number;
+}
+
+interface LegacyAvailability {
+  years: Array<{ year: number; count: number }>;
+  monthsByYear: Record<number, Array<{ month: number; count: number }>>;
+  stations: LegacyStation[];
+}
+
 type SortMode = 'recent' | 'most-played' | 'song' | 'artist' | 'station';
 
 // Legacy mode month options
@@ -120,6 +133,7 @@ export default function PlaysPage() {
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
+  const [legacyAvailability, setLegacyAvailability] = useState<LegacyAvailability | null>(null);
   const limit = 50;
 
   const { stations } = useStations();
@@ -150,12 +164,32 @@ export default function PlaysPage() {
     return () => clearInterval(interval);
   }, [isLegacyMode]);
 
-  // Reset page and date filter when legacy mode changes
+  // Fetch legacy availability data when in legacy mode
+  useEffect(() => {
+    if (!isLegacyMode) {
+      setLegacyAvailability(null);
+      return;
+    }
+
+    const fetchAvailability = async () => {
+      try {
+        const response = await api.get('/plays/legacy-availability');
+        setLegacyAvailability(response.data);
+      } catch (error) {
+        console.error('Failed to fetch legacy availability:', error);
+      }
+    };
+
+    fetchAvailability();
+  }, [isLegacyMode]);
+
+  // Reset page and filters when legacy mode changes
   useEffect(() => {
     setPage(0);
     setDateFilter('all'); // Reset to 'all' since filter options are different per mode
     setSelectedYears([]);
     setSelectedMonths([]);
+    setStationFilter('all'); // Reset station filter as available stations differ between modes
   }, [isLegacyMode]);
 
   // Fetch plays when filters or page change, and poll every minute
@@ -221,6 +255,64 @@ export default function PlaysPage() {
     });
     return Array.from(genres).sort();
   }, [stations]);
+
+  // Compute which years have data
+  const availableYears = useMemo(() => {
+    if (!legacyAvailability) return new Set<string>();
+    return new Set(legacyAvailability.years.map(y => y.year.toString()));
+  }, [legacyAvailability]);
+
+  // Compute which months have data based on selected years
+  const availableMonths = useMemo(() => {
+    if (!legacyAvailability) return new Set<string>();
+
+    // If no years selected, show all months that have data in any year
+    if (selectedYears.length === 0) {
+      const months = new Set<string>();
+      for (const yearMonths of Object.values(legacyAvailability.monthsByYear)) {
+        for (const m of yearMonths) {
+          months.add(m.month.toString());
+        }
+      }
+      return months;
+    }
+
+    // Otherwise, show months that have data in the selected years
+    const months = new Set<string>();
+    for (const yearStr of selectedYears) {
+      const year = parseInt(yearStr);
+      const yearMonths = legacyAvailability.monthsByYear[year];
+      if (yearMonths) {
+        for (const m of yearMonths) {
+          months.add(m.month.toString());
+        }
+      }
+    }
+    return months;
+  }, [legacyAvailability, selectedYears]);
+
+  // Get play count for a year
+  const getYearCount = (year: string): number => {
+    if (!legacyAvailability) return 0;
+    const yearData = legacyAvailability.years.find(y => y.year.toString() === year);
+    return yearData?.count || 0;
+  };
+
+  // Get play count for a month (across selected years or all years if none selected)
+  const getMonthCount = (month: string): number => {
+    if (!legacyAvailability) return 0;
+    let total = 0;
+    const yearsToCheck = selectedYears.length > 0 ? selectedYears : legacyAvailability.years.map(y => y.year.toString());
+    for (const yearStr of yearsToCheck) {
+      const year = parseInt(yearStr);
+      const yearMonths = legacyAvailability.monthsByYear[year];
+      if (yearMonths) {
+        const monthData = yearMonths.find(m => m.month.toString() === month);
+        if (monthData) total += monthData.count;
+      }
+    }
+    return total;
+  };
 
   // Client-side filter and sort (since we have a page of data)
   const filteredAndSortedPlays = useMemo(() => {
@@ -498,11 +590,17 @@ export default function PlaysPage() {
                   }}
                 >
                   <option value="all">All Stations</option>
-                  {stations.map((station) => (
-                    <option key={station.slug} value={station.slug}>
-                      {station.name}
-                    </option>
-                  ))}
+                  {isLegacyMode && legacyAvailability?.stations
+                    ? legacyAvailability.stations.map((station) => (
+                        <option key={station.slug} value={station.slug}>
+                          {station.name} ({station.count.toLocaleString()})
+                        </option>
+                      ))
+                    : stations.map((station) => (
+                        <option key={station.slug} value={station.slug}>
+                          {station.name}
+                        </option>
+                      ))}
                 </Select>
 
                 <Select
@@ -535,6 +633,12 @@ export default function PlaysPage() {
               {/* Legacy Mode Year/Month Multi-Select Filters */}
               {isLegacyMode && (
                 <Box bg={useColorModeValue('gray.50', 'gray.700')} p={4} borderRadius="md">
+                  {!legacyAvailability ? (
+                    <HStack justify="center" py={2}>
+                      <Spinner size="sm" color="orange.500" />
+                      <Text fontSize="sm" color="gray.500">Loading available dates...</Text>
+                    </HStack>
+                  ) : (
                   <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                     {/* Year Selection */}
                     <Box>
@@ -545,21 +649,44 @@ export default function PlaysPage() {
                         value={selectedYears}
                         onChange={(values) => {
                           setSelectedYears(values as string[]);
+                          // Clear months that are no longer available with new year selection
+                          setSelectedMonths([]);
                           setPage(0);
                         }}
                       >
                         <Wrap spacing={2}>
-                          {LEGACY_YEARS.map((year) => (
-                            <WrapItem key={year}>
-                              <Checkbox value={year} colorScheme="orange">
-                                {year}
-                              </Checkbox>
-                            </WrapItem>
-                          ))}
+                          {LEGACY_YEARS.map((year) => {
+                            const hasData = availableYears.has(year);
+                            const count = getYearCount(year);
+                            return (
+                              <WrapItem key={year}>
+                                <Checkbox
+                                  value={year}
+                                  colorScheme="orange"
+                                  isDisabled={!hasData}
+                                  opacity={hasData ? 1 : 0.4}
+                                >
+                                  <HStack spacing={1}>
+                                    <Text>{year}</Text>
+                                    {hasData && (
+                                      <Badge size="sm" colorScheme="orange" variant="subtle">
+                                        {count.toLocaleString()}
+                                      </Badge>
+                                    )}
+                                    {!hasData && (
+                                      <Badge size="sm" colorScheme="gray" variant="subtle">
+                                        No data
+                                      </Badge>
+                                    )}
+                                  </HStack>
+                                </Checkbox>
+                              </WrapItem>
+                            );
+                          })}
                         </Wrap>
                       </CheckboxGroup>
                       <Text fontSize="xs" color="gray.500" mt={1}>
-                        {selectedYears.length === 0 ? 'All years (2013-2015)' : ''}
+                        {selectedYears.length === 0 ? 'All years with data selected' : ''}
                       </Text>
                     </Box>
 
@@ -576,20 +703,41 @@ export default function PlaysPage() {
                         }}
                       >
                         <Wrap spacing={2}>
-                          {MONTHS.map((month) => (
-                            <WrapItem key={month.value}>
-                              <Checkbox value={month.value} colorScheme="orange">
-                                {month.label}
-                              </Checkbox>
-                            </WrapItem>
-                          ))}
+                          {MONTHS.map((month) => {
+                            const hasData = availableMonths.has(month.value);
+                            const count = getMonthCount(month.value);
+                            return (
+                              <WrapItem key={month.value}>
+                                <Checkbox
+                                  value={month.value}
+                                  colorScheme="orange"
+                                  isDisabled={!hasData}
+                                  opacity={hasData ? 1 : 0.4}
+                                >
+                                  <HStack spacing={1}>
+                                    <Text>{month.label}</Text>
+                                    {hasData && count > 0 && (
+                                      <Badge size="sm" colorScheme="orange" variant="subtle">
+                                        {count.toLocaleString()}
+                                      </Badge>
+                                    )}
+                                  </HStack>
+                                </Checkbox>
+                              </WrapItem>
+                            );
+                          })}
                         </Wrap>
                       </CheckboxGroup>
                       <Text fontSize="xs" color="gray.500" mt={1}>
-                        {selectedMonths.length === 0 ? 'All months' : ''}
+                        {selectedMonths.length === 0
+                          ? selectedYears.length > 0
+                            ? 'All months in selected years'
+                            : 'All months'
+                          : ''}
                       </Text>
                     </Box>
                   </SimpleGrid>
+                  )}
                 </Box>
               )}
 
