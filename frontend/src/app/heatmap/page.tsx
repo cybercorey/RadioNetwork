@@ -67,7 +67,7 @@ const HOUR_LABELS = [
 export default function HeatmapPage() {
   const [data, setData] = useState<HeatmapData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [days, setDays] = useState<number>(30);
+  const [timeRange, setTimeRange] = useState<string>('30'); // days or year like '2013'
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [stationFilter, setStationFilter] = useState<string>('all');
   const [metric, setMetric] = useState<string>('total');
@@ -79,14 +79,25 @@ export default function HeatmapPage() {
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const accentColor = useColorModeValue('purple.500', 'purple.300');
 
+  // Check if selected time range is a legacy year
+  const isLegacyYear = ['2013', '2014', '2015'].includes(timeRange);
+
   const fetchHeatmap = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams({
-        days: days.toString(),
-        source: sourceFilter,
+        // Auto-select v1 source for legacy years
+        source: isLegacyYear ? 'v1' : sourceFilter,
         metric,
       });
+
+      // If it's a year (4 digits), use year param, otherwise use days
+      if (isLegacyYear) {
+        params.append('year', timeRange);
+      } else {
+        params.append('days', timeRange);
+      }
+
       if (stationFilter !== 'all') {
         params.append('station', stationFilter);
       }
@@ -97,7 +108,7 @@ export default function HeatmapPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [days, sourceFilter, stationFilter, metric]);
+  }, [timeRange, sourceFilter, stationFilter, metric, isLegacyYear]);
 
   useEffect(() => {
     fetchHeatmap();
@@ -153,21 +164,37 @@ export default function HeatmapPage() {
               <SimpleGrid columns={{ base: 2, md: 5 }} spacing={4}>
                 <Box>
                   <Text fontSize="sm" fontWeight="semibold" mb={1}>Time Range</Text>
-                  <Select value={days} onChange={(e) => setDays(parseInt(e.target.value))}>
-                    <option value={7}>Last 7 days</option>
-                    <option value={30}>Last 30 days</option>
-                    <option value={90}>Last 90 days</option>
-                    <option value={365}>Last year</option>
+                  <Select value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
+                    <optgroup label="Recent">
+                      <option value="7">Last 7 days</option>
+                      <option value="30">Last 30 days</option>
+                      <option value="90">Last 90 days</option>
+                      <option value="365">Last year</option>
+                    </optgroup>
+                    <optgroup label="Legacy Archive">
+                      <option value="2015">2015</option>
+                      <option value="2014">2014</option>
+                      <option value="2013">2013</option>
+                    </optgroup>
                   </Select>
                 </Box>
 
                 <Box>
                   <Text fontSize="sm" fontWeight="semibold" mb={1}>Data Source</Text>
-                  <Select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
+                  <Select
+                    value={isLegacyYear ? 'v1' : sourceFilter}
+                    onChange={(e) => setSourceFilter(e.target.value)}
+                    isDisabled={isLegacyYear}
+                  >
                     <option value="all">All Data</option>
                     <option value="v2">Modern (v2)</option>
                     <option value="v1">Legacy (v1)</option>
                   </Select>
+                  {isLegacyYear && (
+                    <Text fontSize="xs" color="orange.500" mt={1}>
+                      Auto-set to Legacy for {timeRange}
+                    </Text>
+                  )}
                 </Box>
 
                 <Box>

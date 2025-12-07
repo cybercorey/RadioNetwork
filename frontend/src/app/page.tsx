@@ -219,7 +219,7 @@ export default function Home() {
                 <Text fontSize="xs" fontWeight="normal">Find Songs</Text>
               </VStack>
             </Button>
-            {isLegacyMode && (
+            {!isLegacyMode && (
               <Button
                 as={Link}
                 href="/history"

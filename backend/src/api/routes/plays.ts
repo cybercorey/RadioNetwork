@@ -512,18 +512,38 @@ router.get('/this-day-in-history', async (req, res, next) => {
 // Returns play counts by hour and day of week for each station
 // Query params:
 //   - station: station slug (optional, returns all if not specified)
-//   - days: number of days to analyze (default: 30)
+//   - days: number of days to analyze (default: 30) - ignored if year is specified
+//   - year: specific year to analyze (e.g., 2013, 2014, 2015) - for legacy data
 //   - source: 'v1' | 'v2' | 'all' - filter by data source
 //   - metric: 'total' | 'unique' - count total plays or unique songs (default: total)
 router.get('/heatmap', async (req, res, next) => {
   try {
     const stationSlug = req.query.station as string;
     const days = parseInt(req.query.days as string) || 30;
+    const year = req.query.year ? parseInt(req.query.year as string) : null;
     const sourceFilter = req.query.source as string || 'all';
     const metric = req.query.metric as string || 'total';
 
-    const dateThreshold = new Date();
-    dateThreshold.setDate(dateThreshold.getDate() - days);
+    // Determine date range - either by year or by days
+    let dateCondition: string;
+    let dateParams: any[];
+    let timeframeLabel: string;
+
+    if (year) {
+      // Use specific year range
+      const startOfYear = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+      const endOfYear = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
+      dateCondition = 'p.played_at >= $1 AND p.played_at <= $2';
+      dateParams = [startOfYear, endOfYear];
+      timeframeLabel = `${year}`;
+    } else {
+      // Use days-based threshold
+      const dateThreshold = new Date();
+      dateThreshold.setDate(dateThreshold.getDate() - days);
+      dateCondition = 'p.played_at >= $1';
+      dateParams = [dateThreshold];
+      timeframeLabel = `${days} days`;
+    }
 
     // Build source filter SQL
     const sourceCondition = sourceFilter === 'v1'
@@ -551,24 +571,24 @@ router.get('/heatmap', async (req, res, next) => {
             EXTRACT(HOUR FROM p.played_at)::int as hour,
             COUNT(DISTINCT p.song_id)::int as count
           FROM plays p
-          WHERE p.played_at >= $1
+          WHERE ${dateCondition}
             ${sourceCondition}
             ${stationCondition}
           GROUP BY EXTRACT(DOW FROM p.played_at), EXTRACT(HOUR FROM p.played_at)
           ORDER BY day_of_week, hour
-        `, dateThreshold)
+        `, ...dateParams)
       : await prisma.$queryRawUnsafe<{ day_of_week: number; hour: number; count: number }[]>(`
           SELECT
             EXTRACT(DOW FROM p.played_at)::int as day_of_week,
             EXTRACT(HOUR FROM p.played_at)::int as hour,
             COUNT(*)::int as count
           FROM plays p
-          WHERE p.played_at >= $1
+          WHERE ${dateCondition}
             ${sourceCondition}
             ${stationCondition}
           GROUP BY EXTRACT(DOW FROM p.played_at), EXTRACT(HOUR FROM p.played_at)
           ORDER BY day_of_week, hour
-        `, dateThreshold);
+        `, ...dateParams);
 
     // Build a 7x24 matrix (days x hours)
     const matrix: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
@@ -598,17 +618,30 @@ router.get('/heatmap', async (req, res, next) => {
 
       stationHeatmaps = await Promise.all(
         stations.map(async (station) => {
-          const stationData = await prisma.$queryRawUnsafe<{ hour: number; count: number }[]>(`
-            SELECT
-              EXTRACT(HOUR FROM p.played_at)::int as hour,
-              COUNT(*)::int as count
-            FROM plays p
-            WHERE p.played_at >= $1
-              AND p.station_id = $2
-              ${sourceCondition}
-            GROUP BY EXTRACT(HOUR FROM p.played_at)
-            ORDER BY hour
-          `, dateThreshold, station.id);
+          // Build query with year or days-based date condition
+          const stationData = year
+            ? await prisma.$queryRawUnsafe<{ hour: number; count: number }[]>(`
+                SELECT
+                  EXTRACT(HOUR FROM p.played_at)::int as hour,
+                  COUNT(*)::int as count
+                FROM plays p
+                WHERE ${dateCondition}
+                  AND p.station_id = $3
+                  ${sourceCondition}
+                GROUP BY EXTRACT(HOUR FROM p.played_at)
+                ORDER BY hour
+              `, ...dateParams, station.id)
+            : await prisma.$queryRawUnsafe<{ hour: number; count: number }[]>(`
+                SELECT
+                  EXTRACT(HOUR FROM p.played_at)::int as hour,
+                  COUNT(*)::int as count
+                FROM plays p
+                WHERE ${dateCondition}
+                  AND p.station_id = $2
+                  ${sourceCondition}
+                GROUP BY EXTRACT(HOUR FROM p.played_at)
+                ORDER BY hour
+              `, ...dateParams, station.id);
 
           const hourlyData = Array(24).fill(0);
           let stationMax = 0;
@@ -638,9 +671,10 @@ router.get('/heatmap', async (req, res, next) => {
     }
 
     res.json({
-      timeframe: `${days} days`,
+      timeframe: timeframeLabel,
       source: sourceFilter,
       metric,
+      year: year || null,
       station: stationInfo,
       matrix, // 7x24 matrix [day][hour]
       maxCount,

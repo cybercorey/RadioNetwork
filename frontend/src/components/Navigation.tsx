@@ -18,7 +18,7 @@ import { FaHome, FaHistory, FaChartLine, FaSearch, FaLightbulb, FaExchangeAlt, F
 import { useLegacyMode } from '@/context/LegacyModeContext';
 
 // Pages that are not supported in legacy mode (only /plays and /songs/* are supported)
-const LEGACY_UNSUPPORTED_PAGES = ['/analytics', '/insights', '/compare', '/playlists', '/search', '/stations'];
+const LEGACY_UNSUPPORTED_PAGES = ['/analytics', '/insights', '/compare', '/playlists', '/search', '/stations', '/heatmap', '/history'];
 
 export default function Navigation() {
   const bgColor = useColorModeValue('white', 'gray.800');
@@ -73,17 +73,6 @@ export default function Navigation() {
             >
               {isLegacyMode ? 'Legacy Plays' : 'All Plays'}
             </Button>
-            {isLegacyMode && (
-              <Button
-                as={Link}
-                href="/history"
-                leftIcon={<FaCalendarDay />}
-                variant="ghost"
-                size="sm"
-              >
-                This Day
-              </Button>
-            )}
             {!isLegacyMode && (
               <>
                 <Button
