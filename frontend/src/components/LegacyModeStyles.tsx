@@ -20,16 +20,47 @@ const retroStyles = css`
     border-radius: 0 !important; /* Sharp corners like the old days */
   }
 
-  /* Bevel effect borders - the classic Windows 95/98 look */
+  /* ============================================
+     MARCHING ANTS ANIMATION - Classic selection border
+     ============================================ */
+  @keyframes marching-ants {
+    0% { background-position: 0 0, 100% 100%, 0 100%, 100% 0; }
+    100% { background-position: 40px 0, calc(100% - 40px) 100%, 0 calc(100% - 40px), 100% 40px; }
+  }
+
+  @keyframes marching-ants-reverse {
+    0% { background-position: 0 0, 100% 100%, 0 100%, 100% 0; }
+    100% { background-position: -40px 0, calc(100% + 40px) 100%, 0 calc(100% + 40px), 100% -40px; }
+  }
+
+  /* Cards with marching ants border */
   .legacy-mode .chakra-card,
   .legacy-mode [class*="Card"],
   .legacy-mode .chakra-box {
     background: linear-gradient(180deg, #000044 0%, #000022 100%) !important;
-    border: 3px outset #6666aa !important;
-    box-shadow:
-      inset 1px 1px 0 #9999cc,
-      inset -1px -1px 0 #333366,
-      4px 4px 0 rgba(0, 0, 0, 0.5) !important;
+    border: none !important;
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5) !important;
+    position: relative !important;
+  }
+
+  .legacy-mode .chakra-card::before,
+  .legacy-mode [class*="Card"]::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    right: -3px;
+    bottom: -3px;
+    background:
+      linear-gradient(90deg, #00ffff 50%, transparent 50%) repeat-x,
+      linear-gradient(90deg, #00ffff 50%, transparent 50%) repeat-x,
+      linear-gradient(0deg, #00ffff 50%, transparent 50%) repeat-y,
+      linear-gradient(0deg, #00ffff 50%, transparent 50%) repeat-y;
+    background-size: 10px 3px, 10px 3px, 3px 10px, 3px 10px;
+    background-position: 0 0, 100% 100%, 0 100%, 100% 0;
+    animation: marching-ants 0.5s linear infinite;
+    z-index: -1;
+    pointer-events: none;
   }
 
   /* Classic Windows-style buttons */
@@ -92,7 +123,9 @@ const retroStyles = css`
     box-shadow: 0 4px 0 #000000 !important;
   }
 
-  /* EXTREME heading styles - rainbow and animated */
+  /* ============================================
+     MARQUEE TITLE - Scrolling header text
+     ============================================ */
   .legacy-mode h1 {
     font-family: 'Press Start 2P', cursive !important;
     font-size: 1.5em !important;
@@ -138,11 +171,32 @@ const retroStyles = css`
     50% { opacity: 0; }
   }
 
-  /* Table styling - Excel 97 vibes */
+  /* ============================================
+     TABLE WITH MARCHING ANTS SELECTION
+     ============================================ */
   .legacy-mode table,
   .legacy-mode .chakra-table {
-    border: 3px ridge #6666aa !important;
+    border: none !important;
     background: #000033 !important;
+    position: relative !important;
+  }
+
+  .legacy-mode table::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background:
+      linear-gradient(90deg, #ff00ff 50%, transparent 50%) repeat-x,
+      linear-gradient(90deg, #ff00ff 50%, transparent 50%) repeat-x,
+      linear-gradient(0deg, #ff00ff 50%, transparent 50%) repeat-y,
+      linear-gradient(0deg, #ff00ff 50%, transparent 50%) repeat-y;
+    background-size: 8px 2px, 8px 2px, 2px 8px, 2px 8px;
+    animation: marching-ants 0.4s linear infinite;
+    z-index: 0;
+    pointer-events: none;
   }
 
   .legacy-mode th {
@@ -167,12 +221,19 @@ const retroStyles = css`
     background: rgba(0, 0, 100, 0.3) !important;
   }
 
+  /* Row hover with marching ants effect */
   .legacy-mode tr:hover td {
     background: rgba(255, 255, 0, 0.1) !important;
     color: #ffff00 !important;
+    animation: pulse-bg 0.3s ease-in-out infinite alternate !important;
   }
 
-  /* Input fields - Windows 95 style */
+  @keyframes pulse-bg {
+    from { background: rgba(255, 255, 0, 0.1); }
+    to { background: rgba(255, 255, 0, 0.2); }
+  }
+
+  /* Input fields - Windows 95 style with marching ants on focus */
   .legacy-mode input,
   .legacy-mode select,
   .legacy-mode .chakra-input,
@@ -183,6 +244,7 @@ const retroStyles = css`
     font-family: 'VT323', monospace !important;
     font-size: 1.2em !important;
     padding: 6px !important;
+    position: relative !important;
   }
 
   .legacy-mode select {
@@ -191,8 +253,18 @@ const retroStyles = css`
 
   .legacy-mode input:focus,
   .legacy-mode .chakra-input:focus {
-    outline: 2px dashed #ffff00 !important;
-    outline-offset: 2px !important;
+    outline: none !important;
+    animation: focus-ants 0.3s linear infinite !important;
+    box-shadow:
+      0 0 0 2px #000,
+      0 0 0 4px #ffff00,
+      0 0 0 6px #000 !important;
+  }
+
+  @keyframes focus-ants {
+    0% { box-shadow: 0 0 0 2px #ffff00, 0 0 0 4px #000; }
+    50% { box-shadow: 0 0 0 2px #000, 0 0 0 4px #ffff00; }
+    100% { box-shadow: 0 0 0 2px #ffff00, 0 0 0 4px #000; }
   }
 
   /* Badges with that Web 1.0 "NEW!" look */
@@ -313,25 +385,51 @@ const retroStyles = css`
     50% { opacity: 0.98; }
   }
 
-  /* Marquee-style animation for certain elements */
-  .legacy-mode .legacy-marquee {
-    animation: marquee 10s linear infinite;
-    white-space: nowrap;
+  /* ============================================
+     MARQUEE BANNER - Top announcement bar
+     ============================================ */
+  .legacy-mode .legacy-marquee-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 28px;
+    background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #8b00ff);
+    overflow: hidden;
+    z-index: 10001;
+    border-bottom: 2px solid #000;
+    display: flex;
+    align-items: center;
   }
 
-  @keyframes marquee {
-    0% { transform: translateX(100%); }
+  .legacy-mode .legacy-marquee-text {
+    display: inline-block;
+    white-space: nowrap;
+    animation: scroll-left 15s linear infinite;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 10px;
+    color: #000000;
+    text-shadow: 1px 1px 0 #ffffff;
+    padding-left: 100%;
+  }
+
+  @keyframes scroll-left {
+    0% { transform: translateX(0); }
     100% { transform: translateX(-100%); }
   }
 
-  /* Hit counter / visitor badge style */
+  /* Adjust body padding for marquee */
+  body.legacy-mode {
+    padding-top: 28px !important;
+  }
+
+  /* Hit counter / visitor badge style with marching ants */
   .legacy-mode .legacy-badge {
     position: fixed;
     bottom: 20px;
     left: 20px;
     background: #000000 !important;
-    border: 3px ridge #ffcc00 !important;
-    padding: 8px 12px !important;
+    padding: 12px 16px !important;
     z-index: 10000;
     display: flex;
     flex-direction: column;
@@ -340,7 +438,23 @@ const retroStyles = css`
   }
 
   .legacy-mode .legacy-badge::before {
-    content: '~ WELCOME TO ~';
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    right: -3px;
+    bottom: -3px;
+    background:
+      linear-gradient(90deg, #ffcc00 50%, transparent 50%) repeat-x,
+      linear-gradient(90deg, #ffcc00 50%, transparent 50%) repeat-x,
+      linear-gradient(0deg, #ffcc00 50%, transparent 50%) repeat-y,
+      linear-gradient(0deg, #ffcc00 50%, transparent 50%) repeat-y;
+    background-size: 8px 3px, 8px 3px, 3px 8px, 3px 8px;
+    animation: marching-ants 0.4s linear infinite;
+    z-index: -1;
+  }
+
+  .legacy-mode .legacy-badge-welcome {
     font-family: 'Press Start 2P', cursive;
     font-size: 6px;
     color: #ff00ff;
@@ -349,19 +463,18 @@ const retroStyles = css`
 
   .legacy-mode .legacy-badge-text {
     font-family: 'VT323', monospace !important;
-    font-size: 16px !important;
+    font-size: 18px !important;
     color: #00ff00 !important;
     text-shadow: 0 0 5px #00ff00 !important;
   }
 
-  .legacy-mode .legacy-badge::after {
-    content: 'BEST VIEWED IN NETSCAPE 4.0';
+  .legacy-mode .legacy-badge-netscape {
     font-family: 'VT323', monospace;
     font-size: 10px;
     color: #666666;
   }
 
-  /* Under construction style dividers */
+  /* Under construction style dividers with animation */
   .legacy-mode hr,
   .legacy-mode .chakra-divider {
     height: 20px !important;
@@ -374,7 +487,14 @@ const retroStyles = css`
         #000000 10px,
         #000000 20px
       ) !important;
+    background-size: 28px 20px !important;
+    animation: construction-slide 1s linear infinite !important;
     margin: 20px 0 !important;
+  }
+
+  @keyframes construction-slide {
+    0% { background-position: 0 0; }
+    100% { background-position: 28px 0; }
   }
 
   /* Fire text effect for important elements */
@@ -415,6 +535,69 @@ const retroStyles = css`
     background: linear-gradient(180deg, #c0c0c0 0%, #808080 100%) !important;
     border: 2px outset #ffffff !important;
   }
+
+  /* Animated stars background decoration */
+  .legacy-mode .legacy-stars {
+    position: fixed;
+    top: 28px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: -1;
+    overflow: hidden;
+  }
+
+  .legacy-mode .legacy-star {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: #ffffff;
+    animation: twinkle 1s ease-in-out infinite;
+  }
+
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.5); }
+  }
+
+  /* ============================================
+     ANIMATED GIF STYLE DECORATIONS
+     ============================================ */
+  .legacy-mode .legacy-fire {
+    display: inline-block;
+    animation: fire-dance 0.2s steps(2) infinite;
+    color: #ff6600;
+    text-shadow: 0 0 5px #ff0000;
+  }
+
+  @keyframes fire-dance {
+    0% { transform: scaleY(1) scaleX(1); }
+    50% { transform: scaleY(1.1) scaleX(0.95); }
+    100% { transform: scaleY(0.95) scaleX(1.05); }
+  }
+
+  /* Email link style */
+  .legacy-mode .legacy-email::before {
+    content: '\\2709 ';
+    animation: bounce 0.5s ease-in-out infinite;
+    display: inline-block;
+  }
+
+  /* Under construction GIF replacement */
+  .legacy-mode .legacy-construction::before {
+    content: '\\26A0';
+    animation: blink 0.5s step-end infinite;
+    margin-right: 8px;
+    font-size: 1.2em;
+  }
+
+  .legacy-mode .legacy-construction::after {
+    content: '\\26A0';
+    animation: blink 0.5s step-end infinite;
+    margin-left: 8px;
+    font-size: 1.2em;
+  }
 `;
 
 export default function LegacyModeStyles() {
@@ -433,9 +616,37 @@ export default function LegacyModeStyles() {
     <>
       <Global styles={retroStyles} />
       {isLegacyMode && (
-        <div className="legacy-badge">
-          <span className="legacy-badge-text">RadioNetwork v1.0</span>
-        </div>
+        <>
+          {/* Marquee announcement banner */}
+          <div className="legacy-marquee-container">
+            <span className="legacy-marquee-text">
+              *** WELCOME TO RADIONETWORK v1.0 *** NOW PLAYING YOUR FAVORITE HITS FROM 2013-2015 *** OVER 95,000 PLAYS IN OUR DATABASE *** BEST VIEWED IN 800x600 RESOLUTION *** SIGN OUR GUESTBOOK *** YOU ARE VISITOR #001337 ***
+            </span>
+          </div>
+
+          {/* Visitor badge */}
+          <div className="legacy-badge">
+            <span className="legacy-badge-welcome">~ WELCOME TO ~</span>
+            <span className="legacy-badge-text">RadioNetwork v1.0</span>
+            <span className="legacy-badge-netscape">BEST VIEWED IN NETSCAPE 4.0</span>
+          </div>
+
+          {/* Twinkling stars background */}
+          <div className="legacy-stars">
+            {[...Array(30)].map((_, i) => (
+              <div
+                key={i}
+                className="legacy-star"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  animationDelay: `${Math.random() * 2}s`,
+                  animationDuration: `${1 + Math.random() * 2}s`,
+                }}
+              />
+            ))}
+          </div>
+        </>
       )}
     </>
   );
