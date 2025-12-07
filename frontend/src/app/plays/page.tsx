@@ -46,6 +46,7 @@ import { format } from 'date-fns';
 import api from '@/services/api';
 import { useStations } from '@/hooks/useStations';
 import { useRefresh } from '@/context/RefreshContext';
+import { useLegacyMode } from '@/context/LegacyModeContext';
 
 interface Play {
   id: string;
@@ -95,6 +96,7 @@ export default function PlaysPage() {
 
   const { stations } = useStations();
   const { setRefreshing, updateTimestamp } = useRefresh();
+  const { isLegacyMode } = useLegacyMode();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [spotifyUrls, setSpotifyUrls] = useState('');
   const toast = useToast();
@@ -103,70 +105,76 @@ export default function PlaysPage() {
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
 
-  // Fetch database stats once on mount and poll every 2 minutes
+  // Fetch database stats when legacy mode changes
   useEffect(() => {
-    fetchDatabaseStats();
-    const interval = setInterval(fetchDatabaseStats, 120000); // Poll every 2 minutes
+    const fetchStats = async () => {
+      try {
+        const sourceParam = isLegacyMode ? 'v1' : 'all';
+        const response = await api.get(`/plays/stats?source=${sourceParam}`);
+        setDbStats(response.data);
+      } catch (error) {
+        console.error('Failed to fetch database stats:', error);
+      }
+    };
+
+    fetchStats();
+    const interval = setInterval(fetchStats, 120000); // Poll every 2 minutes
     return () => clearInterval(interval);
-  }, []);
+  }, [isLegacyMode]);
+
+  // Reset page and date filter when legacy mode changes
+  useEffect(() => {
+    setPage(0);
+    setDateFilter('all'); // Reset to 'all' since filter options are different per mode
+  }, [isLegacyMode]);
 
   // Fetch plays when filters or page change, and poll every minute
   useEffect(() => {
-    fetchPlays();
-    const interval = setInterval(fetchPlays, 60000); // Poll every minute
-    return () => clearInterval(interval);
-  }, [page, stationFilter, dateFilter, sortBy, contentFilter]);
+    const fetchData = async () => {
+      setIsLoading(true);
+      setRefreshing(true);
+      try {
+        const params = new URLSearchParams({
+          limit: limit.toString(),
+          offset: (page * limit).toString(),
+          filter: contentFilter,
+          source: isLegacyMode ? 'v1' : 'all',
+        });
 
-  const fetchDatabaseStats = async () => {
-    try {
-      const response = await api.get('/plays/stats');
-      setDbStats(response.data);
-    } catch (error) {
-      console.error('Failed to fetch database stats:', error);
-    }
-  };
+        if (stationFilter !== 'all') params.append('station', stationFilter);
+        if (dateFilter !== 'all') params.append('dateFilter', dateFilter);
 
-  const fetchPlays = async () => {
-    setIsLoading(true);
-    setRefreshing(true);
-    try {
-      const params = new URLSearchParams({
-        limit: limit.toString(),
-        offset: (page * limit).toString(),
-        filter: contentFilter, // 'songs', 'shows', or 'all'
-      });
-
-      if (stationFilter !== 'all') params.append('station', stationFilter);
-      if (dateFilter !== 'all') params.append('dateFilter', dateFilter);
-
-      // Use different endpoint for most-played
-      if (sortBy === 'most-played') {
-        const response = await api.get(`/plays/most-played?${params.toString()}`);
-        // Transform the response to match the expected format
-        const transformedPlays = response.data.results.map((item: any) => ({
-          id: `${item.song.id}-most-played`,
-          songId: item.song.id,
-          playCount: item.playCount,
-          song: item.song,
-          station: item.latestPlay?.station || {},
-          playedAt: item.latestPlay?.playedAt || new Date().toISOString(),
-          stationId: item.latestPlay?.station?.id || 0,
-        }));
-        setPlays(transformedPlays);
-        setTotalCount(response.data.pagination.total);
-      } else {
-        const response = await api.get(`/plays/recent?${params.toString()}`);
-        setPlays(response.data.plays);
-        setTotalCount(response.data.pagination.total);
+        if (sortBy === 'most-played') {
+          const response = await api.get(`/plays/most-played?${params.toString()}`);
+          const transformedPlays = response.data.results.map((item: any) => ({
+            id: `${item.song.id}-most-played`,
+            songId: item.song.id,
+            playCount: item.playCount,
+            song: item.song,
+            station: item.latestPlay?.station || {},
+            playedAt: item.latestPlay?.playedAt || new Date().toISOString(),
+            stationId: item.latestPlay?.station?.id || 0,
+          }));
+          setPlays(transformedPlays);
+          setTotalCount(response.data.pagination.total);
+        } else {
+          const response = await api.get(`/plays/recent?${params.toString()}`);
+          setPlays(response.data.plays);
+          setTotalCount(response.data.pagination.total);
+        }
+        updateTimestamp();
+      } catch (error) {
+        console.error('Failed to fetch plays:', error);
+      } finally {
+        setIsLoading(false);
+        setRefreshing(false);
       }
-      updateTimestamp();
-    } catch (error) {
-      console.error('Failed to fetch plays:', error);
-    } finally {
-      setIsLoading(false);
-      setRefreshing(false);
-    }
-  };
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 60000);
+    return () => clearInterval(interval);
+  }, [page, stationFilter, dateFilter, sortBy, contentFilter, isLegacyMode, setRefreshing, updateTimestamp]);
 
   // Get all unique genres
   const allGenres = useMemo(() => {
@@ -285,11 +293,6 @@ export default function PlaysPage() {
     });
   };
 
-  const handleFilterChange = () => {
-    setPage(0); // Reset to first page when filters change
-    fetchPlays();
-  };
-
   if (isLoading && plays.length === 0) {
     return (
       <Box minH="100vh" bg={bgColor} display="flex" alignItems="center" justifyContent="center">
@@ -306,15 +309,17 @@ export default function PlaysPage() {
       <Container maxW="container.xl">
         <VStack spacing={6} align="stretch">
           {/* Header */}
-          <HStack justify="space-between">
-            <Button
-              as={Link}
-              href="/"
-              leftIcon={<FaArrowLeft />}
-              variant="ghost"
-            >
-              Back
-            </Button>
+          <HStack justify={isLegacyMode ? 'flex-end' : 'space-between'}>
+            {!isLegacyMode && (
+              <Button
+                as={Link}
+                href="/"
+                leftIcon={<FaArrowLeft />}
+                variant="ghost"
+              >
+                Back
+              </Button>
+            )}
             <Button
               leftIcon={<FaSpotify />}
               colorScheme="green"
@@ -329,10 +334,19 @@ export default function PlaysPage() {
           <Box bg={cardBg} p={6} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
             <HStack>
               <FaHistory size={24} />
-              <Heading size="xl">All Plays</Heading>
+              <Heading size="xl">
+                {isLegacyMode ? 'Legacy Plays (2013-2015)' : 'All Plays'}
+              </Heading>
+              {isLegacyMode && (
+                <Badge colorScheme="orange" fontSize="md" px={3} py={1}>
+                  v1 Archive
+                </Badge>
+              )}
             </HStack>
             <Text color="gray.500" mt={2}>
-              Browse, filter, and export your radio network's music history
+              {isLegacyMode
+                ? 'Browsing historical data from the original RadioNetwork PHP project'
+                : "Browse, filter, and export your radio network's music history"}
             </Text>
           </Box>
 
@@ -431,10 +445,26 @@ export default function PlaysPage() {
                     setPage(0);
                   }}
                 >
-                  <option value="all">All Time</option>
-                  <option value="24h">Last 24 Hours</option>
-                  <option value="7d">Last 7 Days</option>
-                  <option value="30d">Last 30 Days</option>
+                  {isLegacyMode ? (
+                    <>
+                      <option value="all">All Years (2013-2015)</option>
+                      <option value="2015">2015</option>
+                      <option value="2014">2014</option>
+                      <option value="2013">2013</option>
+                      <option value="2015-Q1">2015 Jan-Mar</option>
+                      <option value="2014-H2">2014 Jul-Dec</option>
+                      <option value="2014-H1">2014 Jan-Jun</option>
+                      <option value="2013-H2">2013 Jul-Dec</option>
+                      <option value="2013-H1">2013 Jan-Jun</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="all">All Time</option>
+                      <option value="24h">Last 24 Hours</option>
+                      <option value="7d">Last 7 Days</option>
+                      <option value="30d">Last 30 Days</option>
+                    </>
+                  )}
                 </Select>
 
                 <Select
@@ -526,7 +556,7 @@ export default function PlaysPage() {
                       )}
                       <Td>
                         <Text fontSize="sm" color="gray.500" whiteSpace="nowrap">
-                          {format(new Date(play.playedAt), 'MMM d, h:mm a')}
+                          {format(new Date(play.playedAt), isLegacyMode ? 'MMM d, yyyy' : 'MMM d, h:mm a')}
                         </Text>
                       </Td>
                       <Td>

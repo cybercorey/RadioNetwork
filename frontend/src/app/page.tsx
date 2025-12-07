@@ -31,6 +31,7 @@ import { Song } from '@/types/song';
 import { Station } from '@/types/station';
 import api from '@/services/api';
 import { format } from 'date-fns';
+import { useLegacyMode } from '@/context/LegacyModeContext';
 
 interface StationWithSong extends Station {
   currentSong?: Song | null;
@@ -41,6 +42,7 @@ export default function Home() {
   const { stations, isLoading } = useStations();
   const socket = useSocket();
   const { setRefreshing, updateTimestamp } = useRefresh();
+  const { isLegacyMode } = useLegacyMode();
   const [stationsWithSongs, setStationsWithSongs] = useState<StationWithSong[]>([]);
 
   const bgColor = useColorModeValue('gray.50', 'gray.900');
@@ -122,60 +124,71 @@ export default function Home() {
           <Box textAlign="center">
             <Heading size="2xl" mb={2}>
               <FaMusic style={{ display: 'inline', marginRight: '12px' }} />
-              RadioNetwork v2
+              {isLegacyMode ? 'RadioNetwork v1' : 'RadioNetwork v2'}
             </Heading>
             <Text fontSize="xl" color="gray.500">
-              Live Radio Station Tracking
+              {isLegacyMode ? 'Archive Mode (2013-2015)' : 'Live Radio Station Tracking'}
             </Text>
+            {isLegacyMode && (
+              <Badge colorScheme="orange" mt={2} fontSize="sm" px={3} py={1}>
+                Viewing Legacy Data
+              </Badge>
+            )}
           </Box>
 
-          {/* Quick Links */}
-          <SimpleGrid columns={{ base: 2, md: 6 }} spacing={4}>
-            <Button
-              as={Link}
-              href="/playlists"
-              size="lg"
-              variant="outline"
-              colorScheme="brand"
-              leftIcon={<Icon as={FaListAlt} />}
-              h="auto"
-              py={6}
-            >
-              <VStack spacing={1}>
-                <Text>Smart Playlists</Text>
-                <Text fontSize="xs" fontWeight="normal">Discover & Trending</Text>
-              </VStack>
-            </Button>
-            <Button
-              as={Link}
-              href="/analytics"
-              size="lg"
-              variant="outline"
-              colorScheme="purple"
-              leftIcon={<Icon as={FaChartLine} />}
-              h="auto"
-              py={6}
-            >
-              <VStack spacing={1}>
-                <Text>Analytics</Text>
-                <Text fontSize="xs" fontWeight="normal">Dashboard</Text>
-              </VStack>
-            </Button>
-            <Button
-              as={Link}
-              href="/insights"
-              size="lg"
-              variant="outline"
-              colorScheme="cyan"
-              leftIcon={<Icon as={FaLightbulb} />}
-              h="auto"
-              py={6}
-            >
-              <VStack spacing={1}>
-                <Text>Insights</Text>
-                <Text fontSize="xs" fontWeight="normal">Deep Analysis</Text>
-              </VStack>
-            </Button>
+          {/* Quick Links - Show fewer options in legacy mode */}
+          <SimpleGrid columns={{ base: 2, md: isLegacyMode ? 3 : 6 }} spacing={4}>
+            {!isLegacyMode && (
+              <Button
+                as={Link}
+                href="/playlists"
+                size="lg"
+                variant="outline"
+                colorScheme="brand"
+                leftIcon={<Icon as={FaListAlt} />}
+                h="auto"
+                py={6}
+              >
+                <VStack spacing={1}>
+                  <Text>Smart Playlists</Text>
+                  <Text fontSize="xs" fontWeight="normal">Discover & Trending</Text>
+                </VStack>
+              </Button>
+            )}
+            {!isLegacyMode && (
+              <Button
+                as={Link}
+                href="/analytics"
+                size="lg"
+                variant="outline"
+                colorScheme="purple"
+                leftIcon={<Icon as={FaChartLine} />}
+                h="auto"
+                py={6}
+              >
+                <VStack spacing={1}>
+                  <Text>Analytics</Text>
+                  <Text fontSize="xs" fontWeight="normal">Dashboard</Text>
+                </VStack>
+              </Button>
+            )}
+            {!isLegacyMode && (
+              <Button
+                as={Link}
+                href="/insights"
+                size="lg"
+                variant="outline"
+                colorScheme="cyan"
+                leftIcon={<Icon as={FaLightbulb} />}
+                h="auto"
+                py={6}
+              >
+                <VStack spacing={1}>
+                  <Text>Insights</Text>
+                  <Text fontSize="xs" fontWeight="normal">Deep Analysis</Text>
+                </VStack>
+              </Button>
+            )}
             <Button
               as={Link}
               href="/plays"
@@ -187,8 +200,8 @@ export default function Home() {
               py={6}
             >
               <VStack spacing={1}>
-                <Text>All Plays</Text>
-                <Text fontSize="xs" fontWeight="normal">Browse History</Text>
+                <Text>{isLegacyMode ? 'Legacy Plays' : 'All Plays'}</Text>
+                <Text fontSize="xs" fontWeight="normal">{isLegacyMode ? '2013-2015 Archive' : 'Browse History'}</Text>
               </VStack>
             </Button>
             <Button
@@ -206,24 +219,27 @@ export default function Home() {
                 <Text fontSize="xs" fontWeight="normal">Find Songs</Text>
               </VStack>
             </Button>
-            <Button
-              as={Link}
-              href="/compare"
-              size="lg"
-              variant="outline"
-              colorScheme="red"
-              leftIcon={<Icon as={FaExchangeAlt} />}
-              h="auto"
-              py={6}
-            >
-              <VStack spacing={1}>
-                <Text>Compare</Text>
-                <Text fontSize="xs" fontWeight="normal">Station Analysis</Text>
-              </VStack>
-            </Button>
+            {!isLegacyMode && (
+              <Button
+                as={Link}
+                href="/compare"
+                size="lg"
+                variant="outline"
+                colorScheme="red"
+                leftIcon={<Icon as={FaExchangeAlt} />}
+                h="auto"
+                py={6}
+              >
+                <VStack spacing={1}>
+                  <Text>Compare</Text>
+                  <Text fontSize="xs" fontWeight="normal">Station Analysis</Text>
+                </VStack>
+              </Button>
+            )}
           </SimpleGrid>
 
-          {/* Now Playing List */}
+          {/* Now Playing List - only show in modern mode */}
+          {!isLegacyMode && (
           <Box bg={cardBg} borderRadius="lg" borderWidth="1px" borderColor={borderColor} overflow="hidden">
             <Box bg="brand.500" px={6} py={4}>
               <HStack>
@@ -310,6 +326,7 @@ export default function Home() {
               </Table>
             </Box>
           </Box>
+          )}
 
           {/* Stats */}
           <HStack spacing={4} justify="center" flexWrap="wrap">

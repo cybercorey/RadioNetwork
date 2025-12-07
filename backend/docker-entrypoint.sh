@@ -43,6 +43,12 @@ npm run prisma:seed || {
   echo "⚠️  Seeding failed, but continuing startup..."
 }
 
+# Run legacy data migration (idempotent - only runs once)
+echo "📼 Running legacy data migration..."
+npx ts-node prisma/migrate-legacy.ts || {
+  echo "⚠️  Legacy migration had issues, but continuing startup..."
+}
+
 echo "✅ Database initialization complete!"
 
 # Start the application

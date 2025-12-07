@@ -4,22 +4,159 @@ import { prisma } from '../../config/database';
 
 const router = Router();
 
+// Helper function to parse date filters (both modern and legacy)
+function parseDateFilter(dateFilter: string): { gte?: Date; lte?: Date } | null {
+  if (!dateFilter || dateFilter === 'all') return null;
+
+  const now = new Date();
+  let startDate: Date | null = null;
+  let endDate: Date | null = null;
+
+  switch (dateFilter) {
+    // Modern relative filters
+    case '24h':
+      startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      break;
+    case '7d':
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      break;
+    case '30d':
+      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      break;
+    // Legacy year filters
+    case '2013':
+      startDate = new Date('2013-01-01T00:00:00Z');
+      endDate = new Date('2013-12-31T23:59:59Z');
+      break;
+    case '2014':
+      startDate = new Date('2014-01-01T00:00:00Z');
+      endDate = new Date('2014-12-31T23:59:59Z');
+      break;
+    case '2015':
+      startDate = new Date('2015-01-01T00:00:00Z');
+      endDate = new Date('2015-12-31T23:59:59Z');
+      break;
+    // Legacy half-year filters
+    case '2013-H1':
+      startDate = new Date('2013-01-01T00:00:00Z');
+      endDate = new Date('2013-06-30T23:59:59Z');
+      break;
+    case '2013-H2':
+      startDate = new Date('2013-07-01T00:00:00Z');
+      endDate = new Date('2013-12-31T23:59:59Z');
+      break;
+    case '2014-H1':
+      startDate = new Date('2014-01-01T00:00:00Z');
+      endDate = new Date('2014-06-30T23:59:59Z');
+      break;
+    case '2014-H2':
+      startDate = new Date('2014-07-01T00:00:00Z');
+      endDate = new Date('2014-12-31T23:59:59Z');
+      break;
+    case '2015-Q1':
+      startDate = new Date('2015-01-01T00:00:00Z');
+      endDate = new Date('2015-03-31T23:59:59Z');
+      break;
+    default:
+      return null;
+  }
+
+  if (startDate && endDate) {
+    return { gte: startDate, lte: endDate };
+  } else if (startDate) {
+    return { gte: startDate };
+  }
+  return null;
+}
+
 // GET /api/plays/stats - Get overall database statistics
+// Query params:
+//   - source: 'v1' | 'v2' | 'all' - filter by data source (legacy vs modern)
 router.get('/stats', async (req, res, next) => {
   try {
-    const totalPlays = await prisma.play.count();
-    const totalSongs = await prisma.song.count();
-    const totalStations = await prisma.station.count({ where: { isActive: true } });
+    const sourceFilter = req.query.source as string || 'all';
 
-    // Get unique artists count
-    const songs = await prisma.song.findMany({ select: { artist: true } });
-    const uniqueArtists = new Set(songs.map(s => s.artist)).size;
+    // Build where clause for source filter
+    const playWhere: any = {};
+    if (sourceFilter === 'v1') {
+      playWhere.source = 'v1';
+    } else if (sourceFilter === 'v2') {
+      playWhere.source = 'v2';
+    }
+
+    const totalPlays = await prisma.play.count({ where: playWhere });
+
+    // Get unique songs and artists based on source filter
+    let totalSongs: number;
+    let uniqueArtists: number;
+    let totalStations: number;
+
+    if (sourceFilter === 'v1' || sourceFilter === 'v2') {
+      // Get songs that have plays with the specified source
+      const songsWithPlays = await prisma.play.findMany({
+        where: playWhere,
+        select: { songId: true },
+        distinct: ['songId'],
+      });
+      totalSongs = songsWithPlays.length;
+
+      // Get unique artists from those songs
+      const songIds = songsWithPlays.map(p => p.songId);
+      const artistsFromSongs = await prisma.song.findMany({
+        where: { id: { in: songIds } },
+        select: { artist: true },
+      });
+      uniqueArtists = new Set(artistsFromSongs.map(s => s.artist)).size;
+
+      // Get stations that have plays with the specified source
+      const stationsWithPlays = await prisma.play.findMany({
+        where: playWhere,
+        select: { stationId: true },
+        distinct: ['stationId'],
+      });
+      totalStations = stationsWithPlays.length;
+    } else {
+      // All sources - count everything
+      totalSongs = await prisma.song.count();
+      totalStations = await prisma.station.count({ where: { isActive: true } });
+      const allSongs = await prisma.song.findMany({ select: { artist: true } });
+      uniqueArtists = new Set(allSongs.map(s => s.artist)).size;
+    }
+
+    // Get breakdown by source
+    const legacyPlays = await prisma.play.count({ where: { source: 'v1' } });
+    const modernPlays = await prisma.play.count({ where: { source: 'v2' } });
+
+    // Get date range for legacy data
+    const oldestLegacy = await prisma.play.findFirst({
+      where: { source: 'v1' },
+      orderBy: { playedAt: 'asc' },
+      select: { playedAt: true },
+    });
+    const newestLegacy = await prisma.play.findFirst({
+      where: { source: 'v1' },
+      orderBy: { playedAt: 'desc' },
+      select: { playedAt: true },
+    });
 
     res.json({
       totalPlays,
       totalSongs,
       totalStations,
       uniqueArtists,
+      source: sourceFilter,
+      breakdown: {
+        legacy: {
+          plays: legacyPlays,
+          dateRange: oldestLegacy && newestLegacy ? {
+            from: oldestLegacy.playedAt,
+            to: newestLegacy.playedAt,
+          } : null,
+        },
+        modern: {
+          plays: modernPlays,
+        },
+      },
     });
   } catch (error) {
     next(error);
@@ -34,6 +171,7 @@ router.get('/stats', async (req, res, next) => {
 //   - search: search in title/artist/station
 //   - dateFilter: '24h' | '7d' | '30d' | 'all'
 //   - filter: 'songs' (default) | 'shows' | 'all' - filter by content type
+//   - source: 'v1' | 'v2' | 'all' - filter by data source (legacy vs modern)
 router.get('/recent', async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit as string) || 50;
@@ -43,9 +181,18 @@ router.get('/recent', async (req, res, next) => {
     const search = req.query.search as string;
     const dateFilter = req.query.dateFilter as string;
     const contentFilter = req.query.filter as string || 'songs'; // 'songs', 'shows', or 'all'
+    const sourceFilter = req.query.source as string || 'all'; // 'v1', 'v2', or 'all'
 
     // Build where clause
     const where: any = {};
+
+    // Source filter (legacy v1 vs modern v2)
+    if (sourceFilter === 'v1') {
+      where.source = 'v1';
+    } else if (sourceFilter === 'v2') {
+      where.source = 'v2';
+    }
+    // 'all' = no filter
 
     // Content type filter (songs vs shows)
     if (contentFilter === 'songs') {
@@ -63,26 +210,10 @@ router.get('/recent', async (req, res, next) => {
       }
     }
 
-    // Date filter
-    if (dateFilter && dateFilter !== 'all') {
-      const now = new Date();
-      let cutoffDate: Date;
-
-      switch (dateFilter) {
-        case '24h':
-          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          break;
-        case '7d':
-          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case '30d':
-          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-
-      where.playedAt = { gte: cutoffDate };
+    // Date filter (supports both modern relative and legacy year-based filters)
+    const dateRange = parseDateFilter(dateFilter);
+    if (dateRange) {
+      where.playedAt = dateRange;
     }
 
     // Get total count with filters
@@ -123,6 +254,7 @@ router.get('/recent', async (req, res, next) => {
         hasMore: offset + plays.length < total,
       },
       filter: contentFilter,
+      source: sourceFilter,
     });
   } catch (error) {
     next(error);
@@ -135,6 +267,7 @@ router.get('/recent', async (req, res, next) => {
 //   - station: filter by station slug
 //   - dateFilter: '24h' | '7d' | '30d' | 'all'
 //   - filter: 'songs' (default) | 'shows' | 'all' - filter by content type
+//   - source: 'v1' | 'v2' | 'all' - filter by data source (legacy vs modern)
 router.get('/most-played', async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit as string) || 50;
@@ -142,9 +275,18 @@ router.get('/most-played', async (req, res, next) => {
     const stationSlug = req.query.station as string;
     const dateFilter = req.query.dateFilter as string;
     const contentFilter = req.query.filter as string || 'songs'; // 'songs', 'shows', or 'all'
+    const sourceFilter = req.query.source as string || 'all'; // 'v1', 'v2', or 'all'
 
     // Build where clause for filtering
     const where: any = {};
+
+    // Source filter (legacy v1 vs modern v2)
+    if (sourceFilter === 'v1') {
+      where.source = 'v1';
+    } else if (sourceFilter === 'v2') {
+      where.source = 'v2';
+    }
+    // 'all' = no filter
 
     // Content type filter (songs vs shows)
     if (contentFilter === 'songs') {
@@ -162,26 +304,10 @@ router.get('/most-played', async (req, res, next) => {
       }
     }
 
-    // Date filter
-    if (dateFilter && dateFilter !== 'all') {
-      const now = new Date();
-      let cutoffDate: Date;
-
-      switch (dateFilter) {
-        case '24h':
-          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          break;
-        case '7d':
-          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case '30d':
-          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-
-      where.playedAt = { gte: cutoffDate };
+    // Date filter (supports both modern relative and legacy year-based filters)
+    const dateRange = parseDateFilter(dateFilter);
+    if (dateRange) {
+      where.playedAt = dateRange;
     }
 
     // Group by songId and count
@@ -229,6 +355,7 @@ router.get('/most-played', async (req, res, next) => {
         hasMore: offset + results.length < total,
       },
       filter: contentFilter,
+      source: sourceFilter,
     });
   } catch (error) {
     next(error);

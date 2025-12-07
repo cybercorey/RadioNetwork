@@ -55,14 +55,16 @@ model Play {
   playedAt          DateTime @map("played_at")
   rawMetadata       Json?    @map("raw_metadata")
   confidenceScore   Float?   @map("confidence_score") @db.Real
+  source            String   @default("v2") @db.VarChar(10) // v1 = legacy, v2 = modern
   createdAt         DateTime @default(now()) @map("created_at")
-  
+
   station           Station  @relation(fields: [stationId], references: [id])
   song              Song     @relation(fields: [songId], references: [id])
 
   @@index([stationId, playedAt(sort: Desc)])
   @@index([songId, playedAt(sort: Desc)])
   @@index([playedAt(sort: Desc)])
+  @@index([source])
   @@map("plays")
 }
 
@@ -74,8 +76,16 @@ model ScrapeJob {
   completedAt   DateTime? @map("completed_at")
   errorMessage  String?   @map("error_message") @db.Text
   songsFound    Int       @default(0) @map("songs_found")
-  
+
   station       Station   @relation(fields: [stationId], references: [id])
 
   @@map("scrape_jobs")
+}
+
+model MigrationStatus {
+  id            String    @id @db.VarChar(100)
+  completedAt   DateTime  @default(now()) @map("completed_at")
+  recordCount   Int       @default(0) @map("record_count")
+
+  @@map("migration_status")
 }
