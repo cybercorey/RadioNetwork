@@ -267,16 +267,21 @@ const retroStyles = css`
     100% { box-shadow: 0 0 0 2px #ffff00, 0 0 0 4px #000; }
   }
 
-  /* Badges with that Web 1.0 "NEW!" look */
+  /* Badges with that Web 1.0 "NEW!" look - but readable */
   .legacy-mode .chakra-badge,
   .legacy-mode .chakra-tag {
-    background: #ff0000 !important;
-    border: 2px outset #ff6666 !important;
-    color: #ffff00 !important;
-    font-family: 'Press Start 2P', cursive !important;
-    font-size: 0.5em !important;
-    animation: bounce 0.5s ease-in-out infinite !important;
+    background: linear-gradient(180deg, #333399 0%, #222266 100%) !important;
+    border: 2px outset #6666cc !important;
+    color: #00ffff !important;
+    font-family: 'VT323', monospace !important;
+    font-size: 0.9em !important;
     text-shadow: 1px 1px 0 #000000 !important;
+    padding: 2px 8px !important;
+  }
+
+  /* Only special badges bounce - use .legacy-bounce class */
+  .legacy-mode .legacy-bounce {
+    animation: bounce 0.5s ease-in-out infinite !important;
   }
 
   @keyframes bounce {
