@@ -58,6 +58,10 @@ interface Play {
   songId: number;
   playedAt: string;
   playCount?: number;
+  rawMetadata?: {
+    legacyStation?: string;
+    migratedAt?: string;
+  };
   song: {
     id: number;
     title: string;
@@ -665,21 +669,29 @@ export default function PlaysPage() {
                       <Td>
                         {play.station?.slug ? (
                           <>
-                            <ChakraLink
-                              as={Link}
-                              href={`/stations/${play.station.slug}`}
-                              color="gray.600"
-                              _hover={{ textDecoration: 'underline' }}
-                            >
-                              {play.station.name}
-                            </ChakraLink>
-                            <HStack mt={1} spacing={1}>
-                              {play.station.tags?.slice(0, 2).map((tag: string) => (
-                                <Badge key={tag} size="sm" variant="subtle" colorScheme="blue">
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </HStack>
+                            {isLegacyMode && play.rawMetadata?.legacyStation ? (
+                              <Text color="gray.600">
+                                {play.rawMetadata.legacyStation}
+                              </Text>
+                            ) : (
+                              <ChakraLink
+                                as={Link}
+                                href={`/stations/${play.station.slug}`}
+                                color="gray.600"
+                                _hover={{ textDecoration: 'underline' }}
+                              >
+                                {play.station.name}
+                              </ChakraLink>
+                            )}
+                            {!isLegacyMode && (
+                              <HStack mt={1} spacing={1}>
+                                {play.station.tags?.slice(0, 2).map((tag: string) => (
+                                  <Badge key={tag} size="sm" variant="subtle" colorScheme="blue">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </HStack>
+                            )}
                           </>
                         ) : (
                           <Text color="gray.400" fontSize="sm">Various</Text>
