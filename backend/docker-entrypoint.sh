@@ -45,7 +45,7 @@ npm run prisma:seed || {
 
 # Run legacy data migration (idempotent - only runs once)
 echo "📼 Running legacy data migration..."
-npx ts-node prisma/migrate-legacy.ts || {
+npx tsx prisma/migrate-legacy.ts || {
   echo "⚠️  Legacy migration had issues, but continuing startup..."
 }
 
