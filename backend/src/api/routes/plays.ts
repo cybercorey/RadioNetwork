@@ -23,40 +23,6 @@ function parseDateFilter(dateFilter: string): { gte?: Date; lte?: Date } | null 
     case '30d':
       startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       break;
-    // Legacy year filters
-    case '2013':
-      startDate = new Date('2013-01-01T00:00:00Z');
-      endDate = new Date('2013-12-31T23:59:59Z');
-      break;
-    case '2014':
-      startDate = new Date('2014-01-01T00:00:00Z');
-      endDate = new Date('2014-12-31T23:59:59Z');
-      break;
-    case '2015':
-      startDate = new Date('2015-01-01T00:00:00Z');
-      endDate = new Date('2015-12-31T23:59:59Z');
-      break;
-    // Legacy half-year filters
-    case '2013-H1':
-      startDate = new Date('2013-01-01T00:00:00Z');
-      endDate = new Date('2013-06-30T23:59:59Z');
-      break;
-    case '2013-H2':
-      startDate = new Date('2013-07-01T00:00:00Z');
-      endDate = new Date('2013-12-31T23:59:59Z');
-      break;
-    case '2014-H1':
-      startDate = new Date('2014-01-01T00:00:00Z');
-      endDate = new Date('2014-06-30T23:59:59Z');
-      break;
-    case '2014-H2':
-      startDate = new Date('2014-07-01T00:00:00Z');
-      endDate = new Date('2014-12-31T23:59:59Z');
-      break;
-    case '2015-Q1':
-      startDate = new Date('2015-01-01T00:00:00Z');
-      endDate = new Date('2015-03-31T23:59:59Z');
-      break;
     default:
       return null;
   }
@@ -67,6 +33,48 @@ function parseDateFilter(dateFilter: string): { gte?: Date; lte?: Date } | null 
     return { gte: startDate };
   }
   return null;
+}
+
+// Helper function to build date range conditions for legacy multi-select filters
+// years: comma-separated list of years (e.g., "2013,2014")
+// months: comma-separated list of months (e.g., "1,2,3" for Jan, Feb, Mar)
+function buildLegacyDateFilter(years: string, months: string): { OR: Array<{ playedAt: { gte: Date; lte: Date } }> } | null {
+  if (!years || years === 'all') return null;
+
+  const yearList = years.split(',').map(y => parseInt(y.trim())).filter(y => !isNaN(y));
+  if (yearList.length === 0) return null;
+
+  const monthList = months && months !== 'all'
+    ? months.split(',').map(m => parseInt(m.trim())).filter(m => !isNaN(m) && m >= 1 && m <= 12)
+    : []; // Empty means all months
+
+  const conditions: Array<{ playedAt: { gte: Date; lte: Date } }> = [];
+
+  for (const year of yearList) {
+    if (monthList.length === 0) {
+      // Full year
+      conditions.push({
+        playedAt: {
+          gte: new Date(`${year}-01-01T00:00:00Z`),
+          lte: new Date(`${year}-12-31T23:59:59Z`),
+        },
+      });
+    } else {
+      // Specific months
+      for (const month of monthList) {
+        const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+        const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59)); // Day 0 of next month = last day of current month
+        conditions.push({
+          playedAt: {
+            gte: startOfMonth,
+            lte: endOfMonth,
+          },
+        });
+      }
+    }
+  }
+
+  return conditions.length > 0 ? { OR: conditions } : null;
 }
 
 // GET /api/plays/stats - Get overall database statistics
@@ -169,7 +177,9 @@ router.get('/stats', async (req, res, next) => {
 //   - station: filter by station slug
 //   - genre: filter by genre tag
 //   - search: search in title/artist/station
-//   - dateFilter: '24h' | '7d' | '30d' | 'all'
+//   - dateFilter: '24h' | '7d' | '30d' | 'all' - for modern mode
+//   - years: comma-separated years (e.g., '2013,2014') - for legacy mode
+//   - months: comma-separated months 1-12 (e.g., '1,2,3') - for legacy mode
 //   - filter: 'songs' (default) | 'shows' | 'all' - filter by content type
 //   - source: 'v1' | 'v2' | 'all' - filter by data source (legacy vs modern)
 router.get('/recent', async (req, res, next) => {
@@ -180,6 +190,8 @@ router.get('/recent', async (req, res, next) => {
     const genre = req.query.genre as string;
     const search = req.query.search as string;
     const dateFilter = req.query.dateFilter as string;
+    const years = req.query.years as string;
+    const months = req.query.months as string;
     const contentFilter = req.query.filter as string || 'songs'; // 'songs', 'shows', or 'all'
     const sourceFilter = req.query.source as string || 'all'; // 'v1', 'v2', or 'all'
 
@@ -210,10 +222,15 @@ router.get('/recent', async (req, res, next) => {
       }
     }
 
-    // Date filter (supports both modern relative and legacy year-based filters)
-    const dateRange = parseDateFilter(dateFilter);
-    if (dateRange) {
-      where.playedAt = dateRange;
+    // Date filter - check for legacy multi-select first, then modern filters
+    const legacyDateFilter = buildLegacyDateFilter(years, months);
+    if (legacyDateFilter) {
+      where.AND = [...(where.AND || []), legacyDateFilter];
+    } else {
+      const dateRange = parseDateFilter(dateFilter);
+      if (dateRange) {
+        where.playedAt = dateRange;
+      }
     }
 
     // Get total count with filters
@@ -265,7 +282,9 @@ router.get('/recent', async (req, res, next) => {
 // Query params:
 //   - limit, offset: pagination
 //   - station: filter by station slug
-//   - dateFilter: '24h' | '7d' | '30d' | 'all'
+//   - dateFilter: '24h' | '7d' | '30d' | 'all' - for modern mode
+//   - years: comma-separated years (e.g., '2013,2014') - for legacy mode
+//   - months: comma-separated months 1-12 (e.g., '1,2,3') - for legacy mode
 //   - filter: 'songs' (default) | 'shows' | 'all' - filter by content type
 //   - source: 'v1' | 'v2' | 'all' - filter by data source (legacy vs modern)
 router.get('/most-played', async (req, res, next) => {
@@ -274,6 +293,8 @@ router.get('/most-played', async (req, res, next) => {
     const offset = parseInt(req.query.offset as string) || 0;
     const stationSlug = req.query.station as string;
     const dateFilter = req.query.dateFilter as string;
+    const years = req.query.years as string;
+    const months = req.query.months as string;
     const contentFilter = req.query.filter as string || 'songs'; // 'songs', 'shows', or 'all'
     const sourceFilter = req.query.source as string || 'all'; // 'v1', 'v2', or 'all'
 
@@ -304,10 +325,15 @@ router.get('/most-played', async (req, res, next) => {
       }
     }
 
-    // Date filter (supports both modern relative and legacy year-based filters)
-    const dateRange = parseDateFilter(dateFilter);
-    if (dateRange) {
-      where.playedAt = dateRange;
+    // Date filter - check for legacy multi-select first, then modern filters
+    const legacyDateFilter = buildLegacyDateFilter(years, months);
+    if (legacyDateFilter) {
+      where.AND = [...(where.AND || []), legacyDateFilter];
+    } else {
+      const dateRange = parseDateFilter(dateFilter);
+      if (dateRange) {
+        where.playedAt = dateRange;
+      }
     }
 
     // Group by songId and count

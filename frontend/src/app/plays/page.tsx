@@ -39,6 +39,10 @@ import {
   useDisclosure,
   Textarea,
   Divider,
+  Checkbox,
+  CheckboxGroup,
+  Wrap,
+  WrapItem,
 } from '@chakra-ui/react';
 import Link from 'next/link';
 import { FaArrowLeft, FaHistory, FaSearch, FaSpotify, FaFileExport, FaDatabase } from 'react-icons/fa';
@@ -80,6 +84,24 @@ interface DatabaseStats {
 
 type SortMode = 'recent' | 'most-played' | 'song' | 'artist' | 'station';
 
+// Legacy mode month options
+const MONTHS = [
+  { value: '1', label: 'Jan' },
+  { value: '2', label: 'Feb' },
+  { value: '3', label: 'Mar' },
+  { value: '4', label: 'Apr' },
+  { value: '5', label: 'May' },
+  { value: '6', label: 'Jun' },
+  { value: '7', label: 'Jul' },
+  { value: '8', label: 'Aug' },
+  { value: '9', label: 'Sep' },
+  { value: '10', label: 'Oct' },
+  { value: '11', label: 'Nov' },
+  { value: '12', label: 'Dec' },
+];
+
+const LEGACY_YEARS = ['2013', '2014', '2015'];
+
 export default function PlaysPage() {
   const [plays, setPlays] = useState<Play[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -88,6 +110,8 @@ export default function PlaysPage() {
   const [genreFilter, setGenreFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<SortMode>('recent');
   const [dateFilter, setDateFilter] = useState<string>('all');
+  const [selectedYears, setSelectedYears] = useState<string[]>([]);
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
   const [contentFilter, setContentFilter] = useState<ContentFilter>('songs');
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
@@ -126,6 +150,8 @@ export default function PlaysPage() {
   useEffect(() => {
     setPage(0);
     setDateFilter('all'); // Reset to 'all' since filter options are different per mode
+    setSelectedYears([]);
+    setSelectedMonths([]);
   }, [isLegacyMode]);
 
   // Fetch plays when filters or page change, and poll every minute
@@ -142,7 +168,14 @@ export default function PlaysPage() {
         });
 
         if (stationFilter !== 'all') params.append('station', stationFilter);
-        if (dateFilter !== 'all') params.append('dateFilter', dateFilter);
+
+        // Use legacy year/month filters or modern dateFilter
+        if (isLegacyMode) {
+          if (selectedYears.length > 0) params.append('years', selectedYears.join(','));
+          if (selectedMonths.length > 0) params.append('months', selectedMonths.join(','));
+        } else {
+          if (dateFilter !== 'all') params.append('dateFilter', dateFilter);
+        }
 
         if (sortBy === 'most-played') {
           const response = await api.get(`/plays/most-played?${params.toString()}`);
@@ -174,7 +207,7 @@ export default function PlaysPage() {
     fetchData();
     const interval = setInterval(fetchData, 60000);
     return () => clearInterval(interval);
-  }, [page, stationFilter, dateFilter, sortBy, contentFilter, isLegacyMode, setRefreshing, updateTimestamp]);
+  }, [page, stationFilter, dateFilter, selectedYears, selectedMonths, sortBy, contentFilter, isLegacyMode, setRefreshing, updateTimestamp]);
 
   // Get all unique genres
   const allGenres = useMemo(() => {
@@ -438,34 +471,20 @@ export default function PlaysPage() {
                   <option value="all">All Content</option>
                 </Select>
 
-                <Select
-                  value={dateFilter}
-                  onChange={(e) => {
-                    setDateFilter(e.target.value);
-                    setPage(0);
-                  }}
-                >
-                  {isLegacyMode ? (
-                    <>
-                      <option value="all">All Years (2013-2015)</option>
-                      <option value="2015">2015</option>
-                      <option value="2014">2014</option>
-                      <option value="2013">2013</option>
-                      <option value="2015-Q1">2015 Jan-Mar</option>
-                      <option value="2014-H2">2014 Jul-Dec</option>
-                      <option value="2014-H1">2014 Jan-Jun</option>
-                      <option value="2013-H2">2013 Jul-Dec</option>
-                      <option value="2013-H1">2013 Jan-Jun</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="all">All Time</option>
-                      <option value="24h">Last 24 Hours</option>
-                      <option value="7d">Last 7 Days</option>
-                      <option value="30d">Last 30 Days</option>
-                    </>
-                  )}
-                </Select>
+                {!isLegacyMode && (
+                  <Select
+                    value={dateFilter}
+                    onChange={(e) => {
+                      setDateFilter(e.target.value);
+                      setPage(0);
+                    }}
+                  >
+                    <option value="all">All Time</option>
+                    <option value="24h">Last 24 Hours</option>
+                    <option value="7d">Last 7 Days</option>
+                    <option value="30d">Last 30 Days</option>
+                  </Select>
+                )}
 
                 <Select
                   value={stationFilter}
@@ -509,7 +528,68 @@ export default function PlaysPage() {
                 </Select>
               </SimpleGrid>
 
-              {(searchQuery || stationFilter !== 'all' || genreFilter !== 'all' || dateFilter !== 'all' || contentFilter !== 'songs') && (
+              {/* Legacy Mode Year/Month Multi-Select Filters */}
+              {isLegacyMode && (
+                <Box bg={useColorModeValue('gray.50', 'gray.700')} p={4} borderRadius="md">
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                    {/* Year Selection */}
+                    <Box>
+                      <Text fontSize="sm" fontWeight="semibold" mb={2}>
+                        Years {selectedYears.length > 0 && `(${selectedYears.length} selected)`}
+                      </Text>
+                      <CheckboxGroup
+                        value={selectedYears}
+                        onChange={(values) => {
+                          setSelectedYears(values as string[]);
+                          setPage(0);
+                        }}
+                      >
+                        <Wrap spacing={2}>
+                          {LEGACY_YEARS.map((year) => (
+                            <WrapItem key={year}>
+                              <Checkbox value={year} colorScheme="orange">
+                                {year}
+                              </Checkbox>
+                            </WrapItem>
+                          ))}
+                        </Wrap>
+                      </CheckboxGroup>
+                      <Text fontSize="xs" color="gray.500" mt={1}>
+                        {selectedYears.length === 0 ? 'All years (2013-2015)' : ''}
+                      </Text>
+                    </Box>
+
+                    {/* Month Selection */}
+                    <Box>
+                      <Text fontSize="sm" fontWeight="semibold" mb={2}>
+                        Months {selectedMonths.length > 0 && `(${selectedMonths.length} selected)`}
+                      </Text>
+                      <CheckboxGroup
+                        value={selectedMonths}
+                        onChange={(values) => {
+                          setSelectedMonths(values as string[]);
+                          setPage(0);
+                        }}
+                      >
+                        <Wrap spacing={2}>
+                          {MONTHS.map((month) => (
+                            <WrapItem key={month.value}>
+                              <Checkbox value={month.value} colorScheme="orange">
+                                {month.label}
+                              </Checkbox>
+                            </WrapItem>
+                          ))}
+                        </Wrap>
+                      </CheckboxGroup>
+                      <Text fontSize="xs" color="gray.500" mt={1}>
+                        {selectedMonths.length === 0 ? 'All months' : ''}
+                      </Text>
+                    </Box>
+                  </SimpleGrid>
+                </Box>
+              )}
+
+              {(searchQuery || stationFilter !== 'all' || genreFilter !== 'all' || dateFilter !== 'all' || contentFilter !== 'songs' || selectedYears.length > 0 || selectedMonths.length > 0) && (
                 <Button
                   size="sm"
                   variant="ghost"
@@ -518,6 +598,8 @@ export default function PlaysPage() {
                     setStationFilter('all');
                     setGenreFilter('all');
                     setDateFilter('all');
+                    setSelectedYears([]);
+                    setSelectedMonths([]);
                     setContentFilter('songs');
                     setPage(0);
                   }}
